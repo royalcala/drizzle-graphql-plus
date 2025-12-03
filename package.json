@@ -8,7 +8,7 @@
     "build": "pnpm tsx scripts/build.ts",
     "b": "pnpm build",
     "pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
-    "publish": "npm publish package.tgz --no-provenance",
+    "publish": "npm publish package.tgz --access public --no-provenance",
     "build:pack:publish": "pnpm build && pnpm pack && pnpm publish",
     "test": "vitest run",
     "server-test:pg": "DB_TYPE=pg tsx watch server/server.ts",
@@ -86,7 +86,8 @@
   "types": "./index.d.ts",
   "sideEffects": false,
   "publishConfig": {
-    "provenance": false
+    "provenance": false,
+    "access": "public"
   },
   "repository": {
     "type": "git",
