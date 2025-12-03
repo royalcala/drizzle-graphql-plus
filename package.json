@@ -1,7 +1,7 @@
 {
-  "name": "@roy.alcala/drizzle-graphql",
+  "name": "drizzle-graphql-plus",
   "type": "module",
-  "author": "Drizzle Team, Roy Alcala",
+  "author": "alcala.rao@gmail.com (Roy Alcala)",
   "version": "0.8.6",
   "description": "Automatically generate GraphQL schema or customizable schema config fields from Drizzle ORM schema",
   "scripts": {
