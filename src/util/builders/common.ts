@@ -545,10 +545,12 @@ export const generateTableTypes = <WithReturning extends boolean>(
           selectArrOutput,
           singleTableItemOutput: singleTableItemOutput!,
           arrTableItemOutput: arrTableItemOutput!,
+          tableFieldsInterface,
         }
       : {
           selectSingleOutput,
           selectArrOutput,
+          tableFieldsInterface,
         }
   ) as GeneratedTableTypesOutputs<WithReturning>;
 
