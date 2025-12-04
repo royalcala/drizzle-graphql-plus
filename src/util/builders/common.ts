@@ -342,6 +342,21 @@ const generateTableFilterTypeCached = (table: Table, tableName: string) => {
   return filters;
 };
 
+const interfaceTypeMap = new WeakMap<Object, GraphQLInterfaceType>();
+const generateTableInterfaceTypeCached = (table: Table, tableName: string) => {
+  if (interfaceTypeMap.has(table)) return interfaceTypeMap.get(table)!;
+
+  const tableFields = generateTableSelectTypeFieldsCached(table, tableName);
+  const interfaceType = new GraphQLInterfaceType({
+    name: `${capitalize(tableName)}Fields`,
+    fields: tableFields,
+  });
+
+  interfaceTypeMap.set(table, interfaceType);
+
+  return interfaceType;
+};
+
 const generateSelectFields = <TWithOrder extends boolean>(
   tables: Record<string, Table>,
   tableName: string,
@@ -400,9 +415,16 @@ const generateSelectFields = <TWithOrder extends boolean>(
       updatedUsedTables
     );
 
+    const targetTable = tables[targetTableName]!;
+    const targetInterface = generateTableInterfaceTypeCached(
+      targetTable,
+      targetTableName
+    );
+
     const relType = new GraphQLObjectType({
       name: relTypeName,
       fields: { ...relData.tableFields, ...relData.relationFields },
+      interfaces: [targetInterface],
     });
 
     if (isOne) {
@@ -497,10 +519,10 @@ export const generateTableTypes = <WithReturning extends boolean>(
     fields: insertFields,
   });
 
-  const tableFieldsInterface = new GraphQLInterfaceType({
-    name: `${stylizedName}Fields`,
-    fields: tableFields,
-  });
+  const tableFieldsInterface = generateTableInterfaceTypeCached(
+    table,
+    tableName
+  );
 
   const selectSingleOutput = new GraphQLObjectType({
     name: `${stylizedName}SelectItem`,
