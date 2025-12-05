@@ -33,25 +33,4 @@ server.listen(PORT, () => {
   console.log(`🚀 Server ready at http://localhost:${PORT}/graphql`);
   console.log(`📊 GraphiQL interface available for testing`);
   console.log(`\nTest the interface fragments with queries like:`);
-  console.log(`
-query {
-  users {
-    ...UserFragment
-    posts {
-      ...PostFragment
-    }
-  }
-}
-
-fragment UserFragment on UserFields {
-  id
-  name
-  email
-}
-
-fragment PostFragment on PostFields {
-  id
-  title
-}
-  `);
 });

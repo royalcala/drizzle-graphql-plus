@@ -10,46 +10,19 @@ const db = drizzle(client, { schema });
 
 async function seed() {
   console.log("🌱 Seeding database...");
+  console.log(
+    "ℹ️  Make sure to run 'npx drizzle-kit push' first to create tables"
+  );
 
-  // Drop existing tables
-  console.log("🗑️  Dropping existing tables...");
-  await client.execute("DROP TABLE IF EXISTS comments");
-  await client.execute("DROP TABLE IF EXISTS posts");
-  await client.execute("DROP TABLE IF EXISTS users");
-
-  // Create tables
-  console.log("📦 Creating tables...");
-  await client.execute(`
-    CREATE TABLE users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      email TEXT NOT NULL,
-      bio TEXT
-    )
-  `);
-
-  await client.execute(`
-    CREATE TABLE posts (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      title TEXT NOT NULL,
-      content TEXT NOT NULL,
-      author_id INTEGER NOT NULL,
-      name TEXT
-    )
-  `);
-
-  await client.execute(`
-    CREATE TABLE comments (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      text TEXT NOT NULL,
-      post_id INTEGER NOT NULL,
-      user_id INTEGER NOT NULL
-    )
-  `);
+  // Clear existing data
+  console.log("🗑️  Clearing existing data...");
+  await db.delete(schema.comment);
+  await db.delete(schema.post);
+  await db.delete(schema.user);
 
   // Insert users
   const [user1] = await db
-    .insert(schema.users)
+    .insert(schema.user)
     .values({
       name: "Alice Smith",
       email: "alice@example.com",
@@ -58,7 +31,7 @@ async function seed() {
     .returning();
 
   const [user2] = await db
-    .insert(schema.users)
+    .insert(schema.user)
     .values({
       name: "Bob Johnson",
       email: "bob@example.com",
@@ -67,7 +40,7 @@ async function seed() {
     .returning();
 
   const [user3] = await db
-    .insert(schema.users)
+    .insert(schema.user)
     .values({
       name: "Charlie Brown",
       email: "charlie@example.com",
@@ -79,7 +52,7 @@ async function seed() {
 
   // Insert posts
   const [post1] = await db
-    .insert(schema.posts)
+    .insert(schema.post)
     .values({
       title: "Introduction to GraphQL",
       content: "GraphQL is a query language for APIs...",
@@ -89,7 +62,7 @@ async function seed() {
     .returning();
 
   const [post2] = await db
-    .insert(schema.posts)
+    .insert(schema.post)
     .values({
       title: "Drizzle ORM Tutorial",
       content: "Drizzle is a modern TypeScript ORM...",
@@ -99,7 +72,7 @@ async function seed() {
     .returning();
 
   const [post3] = await db
-    .insert(schema.posts)
+    .insert(schema.post)
     .values({
       title: "Building REST APIs",
       content: "REST is an architectural style...",
@@ -110,7 +83,7 @@ async function seed() {
   console.log(`✅ Created ${3} posts`);
 
   // Insert comments
-  await db.insert(schema.comments).values([
+  await db.insert(schema.comment).values([
     {
       text: "Great article!",
       postId: post1!.id,

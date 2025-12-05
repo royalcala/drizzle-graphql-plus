@@ -1,48 +1,61 @@
 import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 import { relations } from "drizzle-orm";
+import { ulid as generateUlid } from "ulid";
+import { setCustomGraphQLTypes } from "../src/index";
 
-export const users = sqliteTable("users", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const user = sqliteTable("user", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => generateUlid()),
   name: text("name").notNull(),
   email: text("email").notNull(),
   bio: text("bio"),
 });
 
-export const posts = sqliteTable("posts", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const post = sqliteTable("post", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => generateUlid()),
   title: text("title").notNull(),
   content: text("content").notNull(),
-  authorId: integer("author_id").notNull(),
+  authorId: text("author_id").notNull(),
   name: text("name"),
 });
 
-export const comments = sqliteTable("comments", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const comment = sqliteTable("comment", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => generateUlid()),
   text: text("text").notNull(),
-  postId: integer("post_id").notNull(),
-  userId: integer("user_id").notNull(),
+  postId: text("post_id").notNull(),
+  userId: text("user_id").notNull(),
 });
 
-export const usersRelations = relations(users, ({ many }) => ({
-  posts: many(posts),
-  comments: many(comments),
+// Mark columns as ULID type for GraphQL
+setCustomGraphQLTypes(user, { id: "ULID" });
+setCustomGraphQLTypes(post, { id: "ULID", authorId: "ULID" });
+setCustomGraphQLTypes(comment, { id: "ULID", postId: "ULID", userId: "ULID" });
+
+export const userRelations = relations(user, ({ many }) => ({
+  posts: many(post),
+  comments: many(comment),
 }));
 
-export const postsRelations = relations(posts, ({ one, many }) => ({
-  author: one(users, {
-    fields: [posts.authorId],
-    references: [users.id],
+export const postRelations = relations(post, ({ one, many }) => ({
+  author: one(user, {
+    fields: [post.authorId],
+    references: [user.id],
   }),
-  comments: many(comments),
+  comments: many(comment),
 }));
 
-export const commentsRelations = relations(comments, ({ one }) => ({
-  post: one(posts, {
-    fields: [comments.postId],
-    references: [posts.id],
+export const commentRelations = relations(comment, ({ one }) => ({
+  post: one(post, {
+    fields: [comment.postId],
+    references: [post.id],
   }),
-  user: one(users, {
-    fields: [comments.userId],
-    references: [users.id],
+  user: one(user, {
+    fields: [comment.userId],
+    references: [user.id],
   }),
 }));

@@ -1,0 +1,623 @@
+
+scalar ULID
+
+enum OrderByDirection {
+  asc
+  desc
+}
+
+input InnerOrder {
+  direction: OrderByDirection!
+  priority: Int!
+}
+
+type Comment {
+  id: ULID
+  text: String!
+  postId: ULID!
+  userId: ULID!
+  post(where: PostFilters): Post
+  user(where: UserFilters): User
+}
+
+input CommentInsertInput {
+  text: String
+  postId: ULID
+  userId: ULID
+}
+
+input CommentUpdateInput {
+  id: ULID
+  text: String
+  postId: ULID
+  userId: ULID
+}
+
+input CommentIdFiltersOr {
+  eq: ULID
+  ne: ULID
+  lt: ULID
+  lte: ULID
+  gt: ULID
+  gte: ULID
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [ULID!]
+  notInArray: [ULID!]
+  isNull: Boolean
+  isNotNull: Boolean
+}
+
+input CommentIdFilters {
+  eq: ULID
+  ne: ULID
+  lt: ULID
+  lte: ULID
+  gt: ULID
+  gte: ULID
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [ULID!]
+  notInArray: [ULID!]
+  isNull: Boolean
+  isNotNull: Boolean
+  OR: [CommentIdFiltersOr!]
+}
+
+input CommentTextFiltersOr {
+  eq: String
+  ne: String
+  lt: String
+  lte: String
+  gt: String
+  gte: String
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [String!]
+  notInArray: [String!]
+  isNull: Boolean
+  isNotNull: Boolean
+}
+
+input CommentTextFilters {
+  eq: String
+  ne: String
+  lt: String
+  lte: String
+  gt: String
+  gte: String
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [String!]
+  notInArray: [String!]
+  isNull: Boolean
+  isNotNull: Boolean
+  OR: [CommentTextFiltersOr!]
+}
+
+input CommentPostIdFiltersOr {
+  eq: ULID
+  ne: ULID
+  lt: ULID
+  lte: ULID
+  gt: ULID
+  gte: ULID
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [ULID!]
+  notInArray: [ULID!]
+  isNull: Boolean
+  isNotNull: Boolean
+}
+
+input CommentPostIdFilters {
+  eq: ULID
+  ne: ULID
+  lt: ULID
+  lte: ULID
+  gt: ULID
+  gte: ULID
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [ULID!]
+  notInArray: [ULID!]
+  isNull: Boolean
+  isNotNull: Boolean
+  OR: [CommentPostIdFiltersOr!]
+}
+
+input CommentUserIdFiltersOr {
+  eq: ULID
+  ne: ULID
+  lt: ULID
+  lte: ULID
+  gt: ULID
+  gte: ULID
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [ULID!]
+  notInArray: [ULID!]
+  isNull: Boolean
+  isNotNull: Boolean
+}
+
+input CommentUserIdFilters {
+  eq: ULID
+  ne: ULID
+  lt: ULID
+  lte: ULID
+  gt: ULID
+  gte: ULID
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [ULID!]
+  notInArray: [ULID!]
+  isNull: Boolean
+  isNotNull: Boolean
+  OR: [CommentUserIdFiltersOr!]
+}
+
+input CommentFiltersOr {
+  id: CommentIdFilters
+  text: CommentTextFilters
+  postId: CommentPostIdFilters
+  userId: CommentUserIdFilters
+}
+
+input CommentFilters {
+  id: CommentIdFilters
+  text: CommentTextFilters
+  postId: CommentPostIdFilters
+  userId: CommentUserIdFilters
+  OR: [CommentFiltersOr!]
+}
+
+input CommentOrderBy {
+  id: InnerOrder
+  text: InnerOrder
+  postId: InnerOrder
+  userId: InnerOrder
+}
+
+type Post {
+  id: ULID
+  title: String!
+  content: String!
+  authorId: ULID!
+  name: String
+  author(where: UserFilters): User
+  comments(where: CommentFilters, orderBy: CommentOrderBy, limit: Int, offset: Int): [Comment!]!
+}
+
+input PostInsertInput {
+  title: String
+  content: String
+  authorId: ULID
+  name: String
+}
+
+input PostUpdateInput {
+  id: ULID
+  title: String
+  content: String
+  authorId: ULID
+  name: String
+}
+
+input PostIdFiltersOr {
+  eq: ULID
+  ne: ULID
+  lt: ULID
+  lte: ULID
+  gt: ULID
+  gte: ULID
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [ULID!]
+  notInArray: [ULID!]
+  isNull: Boolean
+  isNotNull: Boolean
+}
+
+input PostIdFilters {
+  eq: ULID
+  ne: ULID
+  lt: ULID
+  lte: ULID
+  gt: ULID
+  gte: ULID
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [ULID!]
+  notInArray: [ULID!]
+  isNull: Boolean
+  isNotNull: Boolean
+  OR: [PostIdFiltersOr!]
+}
+
+input PostTitleFiltersOr {
+  eq: String
+  ne: String
+  lt: String
+  lte: String
+  gt: String
+  gte: String
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [String!]
+  notInArray: [String!]
+  isNull: Boolean
+  isNotNull: Boolean
+}
+
+input PostTitleFilters {
+  eq: String
+  ne: String
+  lt: String
+  lte: String
+  gt: String
+  gte: String
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [String!]
+  notInArray: [String!]
+  isNull: Boolean
+  isNotNull: Boolean
+  OR: [PostTitleFiltersOr!]
+}
+
+input PostContentFiltersOr {
+  eq: String
+  ne: String
+  lt: String
+  lte: String
+  gt: String
+  gte: String
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [String!]
+  notInArray: [String!]
+  isNull: Boolean
+  isNotNull: Boolean
+}
+
+input PostContentFilters {
+  eq: String
+  ne: String
+  lt: String
+  lte: String
+  gt: String
+  gte: String
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [String!]
+  notInArray: [String!]
+  isNull: Boolean
+  isNotNull: Boolean
+  OR: [PostContentFiltersOr!]
+}
+
+input PostAuthorIdFiltersOr {
+  eq: ULID
+  ne: ULID
+  lt: ULID
+  lte: ULID
+  gt: ULID
+  gte: ULID
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [ULID!]
+  notInArray: [ULID!]
+  isNull: Boolean
+  isNotNull: Boolean
+}
+
+input PostAuthorIdFilters {
+  eq: ULID
+  ne: ULID
+  lt: ULID
+  lte: ULID
+  gt: ULID
+  gte: ULID
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [ULID!]
+  notInArray: [ULID!]
+  isNull: Boolean
+  isNotNull: Boolean
+  OR: [PostAuthorIdFiltersOr!]
+}
+
+input PostNameFiltersOr {
+  eq: String
+  ne: String
+  lt: String
+  lte: String
+  gt: String
+  gte: String
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [String!]
+  notInArray: [String!]
+  isNull: Boolean
+  isNotNull: Boolean
+}
+
+input PostNameFilters {
+  eq: String
+  ne: String
+  lt: String
+  lte: String
+  gt: String
+  gte: String
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [String!]
+  notInArray: [String!]
+  isNull: Boolean
+  isNotNull: Boolean
+  OR: [PostNameFiltersOr!]
+}
+
+input PostFiltersOr {
+  id: PostIdFilters
+  title: PostTitleFilters
+  content: PostContentFilters
+  authorId: PostAuthorIdFilters
+  name: PostNameFilters
+}
+
+input PostFilters {
+  id: PostIdFilters
+  title: PostTitleFilters
+  content: PostContentFilters
+  authorId: PostAuthorIdFilters
+  name: PostNameFilters
+  OR: [PostFiltersOr!]
+}
+
+input PostOrderBy {
+  id: InnerOrder
+  title: InnerOrder
+  content: InnerOrder
+  authorId: InnerOrder
+  name: InnerOrder
+}
+
+type User {
+  id: ULID
+  name: String!
+  email: String!
+  bio: String
+  posts(where: PostFilters, orderBy: PostOrderBy, limit: Int, offset: Int): [Post!]!
+  comments(where: CommentFilters, orderBy: CommentOrderBy, limit: Int, offset: Int): [Comment!]!
+}
+
+input UserInsertInput {
+  name: String
+  email: String
+  bio: String
+}
+
+input UserUpdateInput {
+  id: ULID
+  name: String
+  email: String
+  bio: String
+}
+
+input UserIdFiltersOr {
+  eq: ULID
+  ne: ULID
+  lt: ULID
+  lte: ULID
+  gt: ULID
+  gte: ULID
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [ULID!]
+  notInArray: [ULID!]
+  isNull: Boolean
+  isNotNull: Boolean
+}
+
+input UserIdFilters {
+  eq: ULID
+  ne: ULID
+  lt: ULID
+  lte: ULID
+  gt: ULID
+  gte: ULID
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [ULID!]
+  notInArray: [ULID!]
+  isNull: Boolean
+  isNotNull: Boolean
+  OR: [UserIdFiltersOr!]
+}
+
+input UserNameFiltersOr {
+  eq: String
+  ne: String
+  lt: String
+  lte: String
+  gt: String
+  gte: String
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [String!]
+  notInArray: [String!]
+  isNull: Boolean
+  isNotNull: Boolean
+}
+
+input UserNameFilters {
+  eq: String
+  ne: String
+  lt: String
+  lte: String
+  gt: String
+  gte: String
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [String!]
+  notInArray: [String!]
+  isNull: Boolean
+  isNotNull: Boolean
+  OR: [UserNameFiltersOr!]
+}
+
+input UserEmailFiltersOr {
+  eq: String
+  ne: String
+  lt: String
+  lte: String
+  gt: String
+  gte: String
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [String!]
+  notInArray: [String!]
+  isNull: Boolean
+  isNotNull: Boolean
+}
+
+input UserEmailFilters {
+  eq: String
+  ne: String
+  lt: String
+  lte: String
+  gt: String
+  gte: String
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [String!]
+  notInArray: [String!]
+  isNull: Boolean
+  isNotNull: Boolean
+  OR: [UserEmailFiltersOr!]
+}
+
+input UserBioFiltersOr {
+  eq: String
+  ne: String
+  lt: String
+  lte: String
+  gt: String
+  gte: String
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [String!]
+  notInArray: [String!]
+  isNull: Boolean
+  isNotNull: Boolean
+}
+
+input UserBioFilters {
+  eq: String
+  ne: String
+  lt: String
+  lte: String
+  gt: String
+  gte: String
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [String!]
+  notInArray: [String!]
+  isNull: Boolean
+  isNotNull: Boolean
+  OR: [UserBioFiltersOr!]
+}
+
+input UserFiltersOr {
+  id: UserIdFilters
+  name: UserNameFilters
+  email: UserEmailFilters
+  bio: UserBioFilters
+}
+
+input UserFilters {
+  id: UserIdFilters
+  name: UserNameFilters
+  email: UserEmailFilters
+  bio: UserBioFilters
+  OR: [UserFiltersOr!]
+}
+
+input UserOrderBy {
+  id: InnerOrder
+  name: InnerOrder
+  email: InnerOrder
+  bio: InnerOrder
+}
+
+type Query {
+  comment(where: CommentFilters, orderBy: CommentOrderBy, limit: Int, offset: Int): [Comment!]!
+  post(where: PostFilters, orderBy: PostOrderBy, limit: Int, offset: Int): [Post!]!
+  user(where: UserFilters, orderBy: UserOrderBy, limit: Int, offset: Int): [User!]!
+}
+
+type Mutation {
+  insertComment(values: [CommentInsertInput!]!): [Comment!]!
+  updateComment(where: CommentFilters, set: CommentUpdateInput!): [Comment!]!
+  deleteComment(where: CommentFilters): [Comment!]!
+  insertPost(values: [PostInsertInput!]!): [Post!]!
+  updatePost(where: PostFilters, set: PostUpdateInput!): [Post!]!
+  deletePost(where: PostFilters): [Post!]!
+  insertUser(values: [UserInsertInput!]!): [User!]!
+  updateUser(where: UserFilters, set: UserUpdateInput!): [User!]!
+  deleteUser(where: UserFilters): [User!]!
+}
