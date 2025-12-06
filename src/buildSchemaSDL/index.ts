@@ -13,12 +13,12 @@ import {
   type MutationResolvers,
 } from "./generator/mutations";
 
-type Capitalize<S extends string> = S extends `${infer F}${infer R}`
+export type Capitalize<S extends string> = S extends `${infer F}${infer R}`
   ? `${Uppercase<F>}${R}`
   : S;
 
 // Type for column filters
-type ColumnFilter<T = any> = {
+export type ColumnFilter<T = any> = {
   eq?: T;
   ne?: T;
   gt?: T;
@@ -37,7 +37,7 @@ type ColumnFilter<T = any> = {
 };
 
 // Type for where input based on table columns
-type WhereInput<TTable> = TTable extends { $inferSelect: infer S }
+export type WhereInput<TTable> = TTable extends { $inferSelect: infer S }
   ? {
       [K in keyof S]?: ColumnFilter<S[K]>;
     } & {
@@ -46,7 +46,7 @@ type WhereInput<TTable> = TTable extends { $inferSelect: infer S }
   : never;
 
 // Type for orderBy input
-type OrderByInput<TTable> = TTable extends { $inferSelect: infer S }
+export type OrderByInput<TTable> = TTable extends { $inferSelect: infer S }
   ? {
       [K in keyof S]?: {
         direction: "asc" | "desc";
@@ -56,7 +56,7 @@ type OrderByInput<TTable> = TTable extends { $inferSelect: infer S }
   : never;
 
 // Type for query arguments
-type QueryArgs<TTable> = {
+export type QueryArgs<TTable> = {
   where?: WhereInput<TTable>;
   orderBy?: OrderByInput<TTable>;
   limit?: number;
@@ -64,10 +64,12 @@ type QueryArgs<TTable> = {
 };
 
 // Type for insert input
-type InsertInput<TTable> = TTable extends { $inferInsert: infer I } ? I : never;
+export type InsertInput<TTable> = TTable extends { $inferInsert: infer I }
+  ? I
+  : never;
 
 // Type for update input
-type UpdateInput<TTable> = TTable extends { $inferInsert: infer I }
+export type UpdateInput<TTable> = TTable extends { $inferInsert: infer I }
   ? Partial<I>
   : never;
 

@@ -35,7 +35,7 @@ const customScalarResolvers = {
   ULID: GraphQLULID,
 };
 
-const resolversWithScalars = {
+export const resolversWithScalars = {
   ...resolvers,
   ...customScalarResolvers,
 };
