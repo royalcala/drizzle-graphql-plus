@@ -1,4 +1,4 @@
-import { is } from "drizzle-orm";
+import { is, type InferSelectModel } from "drizzle-orm";
 import { BaseSQLiteDatabase } from "drizzle-orm/sqlite-core";
 import type { AnyDrizzleDB, BuildSchemaConfig } from "../types";
 import {
@@ -7,18 +7,128 @@ import {
   generateQueryTypeDefs,
   generateMutationTypeDefs,
 } from "./generator/schema";
-import { generateQueries } from "./generator/queries";
-import { generateMutations } from "./generator/mutations";
+import { generateQueries, type QueryResolvers } from "./generator/queries";
+import {
+  generateMutations,
+  type MutationResolvers,
+} from "./generator/mutations";
 
-export type BuildSchemaSDLResult = {
-  typeDefs: string;
-  resolvers: Record<string, any>;
+type Capitalize<S extends string> = S extends `${infer F}${infer R}`
+  ? `${Uppercase<F>}${R}`
+  : S;
+
+// Type for column filters
+type ColumnFilter<T = any> = {
+  eq?: T;
+  ne?: T;
+  gt?: T;
+  gte?: T;
+  lt?: T;
+  lte?: T;
+  like?: string;
+  notLike?: string;
+  ilike?: string;
+  notIlike?: string;
+  inArray?: T[];
+  notInArray?: T[];
+  isNull?: boolean;
+  isNotNull?: boolean;
+  OR?: ColumnFilter<T>[];
 };
 
-export const buildSchemaSDL = <TDbClient extends AnyDrizzleDB<any>>(
+// Type for where input based on table columns
+type WhereInput<TTable> = TTable extends { $inferSelect: infer S }
+  ? {
+      [K in keyof S]?: ColumnFilter<S[K]>;
+    } & {
+      OR?: WhereInput<TTable>[];
+    }
+  : never;
+
+// Type for orderBy input
+type OrderByInput<TTable> = TTable extends { $inferSelect: infer S }
+  ? {
+      [K in keyof S]?: {
+        direction: "asc" | "desc";
+        priority: number;
+      };
+    }
+  : never;
+
+// Type for query arguments
+type QueryArgs<TTable> = {
+  where?: WhereInput<TTable>;
+  orderBy?: OrderByInput<TTable>;
+  limit?: number;
+  offset?: number;
+};
+
+// Type for insert input
+type InsertInput<TTable> = TTable extends { $inferInsert: infer I } ? I : never;
+
+// Type for update input
+type UpdateInput<TTable> = TTable extends { $inferInsert: infer I }
+  ? Partial<I>
+  : never;
+
+export type BuildSchemaSDLResult<
+  TSchema extends Record<string, any> = Record<string, any>
+> = {
+  typeDefs: string;
+  resolvers: {
+    Query: {
+      [K in keyof TSchema as TSchema[K] extends { $inferSelect: any }
+        ? K
+        : never]: (
+        parent: any,
+        args: QueryArgs<TSchema[K]>,
+        context: any,
+        info: any
+      ) => Promise<InferSelectModel<TSchema[K]>[]>;
+    };
+    Mutation: {
+      [K in keyof TSchema as TSchema[K] extends { $inferSelect: any }
+        ? `insert${Capitalize<K & string>}`
+        : never]: (
+        parent: any,
+        args: { data: InsertInput<TSchema[K]> | InsertInput<TSchema[K]>[] },
+        context: any,
+        info: any
+      ) => Promise<InferSelectModel<TSchema[K]>[]>;
+    } & {
+      [K in keyof TSchema as TSchema[K] extends { $inferSelect: any }
+        ? `update${Capitalize<K & string>}`
+        : never]: (
+        parent: any,
+        args: { data: UpdateInput<TSchema[K]>; where: WhereInput<TSchema[K]> },
+        context: any,
+        info: any
+      ) => Promise<InferSelectModel<TSchema[K]>[]>;
+    } & {
+      [K in keyof TSchema as TSchema[K] extends { $inferSelect: any }
+        ? `delete${Capitalize<K & string>}`
+        : never]: (
+        parent: any,
+        args: { where: WhereInput<TSchema[K]> },
+        context: any,
+        info: any
+      ) => Promise<InferSelectModel<TSchema[K]>[]>;
+    };
+    [key: string]: any;
+  };
+};
+
+export const buildSchemaSDL = <
+  TDbClient extends AnyDrizzleDB<any>,
+  TSchema extends Record<string, any> = TDbClient extends {
+    _: { fullSchema: infer S };
+  }
+    ? S
+    : Record<string, any>
+>(
   db: TDbClient,
   config?: BuildSchemaConfig
-): BuildSchemaSDLResult => {
+): BuildSchemaSDLResult<TSchema> => {
   const schema = db._.fullSchema;
   if (!schema) {
     throw new Error(
@@ -45,27 +155,20 @@ export const buildSchemaSDL = <TDbClient extends AnyDrizzleDB<any>>(
   // Add Query type
   typeDefsArray.push(generateQueryTypeDefs(tables));
 
-  // Add Mutation type if enabled
-  if (config?.mutations !== false) {
-    typeDefsArray.push(generateMutationTypeDefs(tables));
-  }
+  // Add Mutation type
+  typeDefsArray.push(generateMutationTypeDefs(tables));
 
   const typeDefs = typeDefsArray.join("\n\n");
 
   // Generate resolvers
   const queries = generateQueries(db, tables, relations);
-  const resolvers: Record<string, any> = {
-    Query: queries,
-  };
-
-  // Add mutation resolvers if enabled
-  if (config?.mutations !== false) {
-    const mutations = generateMutations(db, tables);
-    resolvers["Mutation"] = mutations;
-  }
+  const mutations = generateMutations(db, tables);
 
   return {
     typeDefs,
-    resolvers,
+    resolvers: {
+      Query: queries,
+      Mutation: mutations,
+    } as BuildSchemaSDLResult<TSchema>["resolvers"],
   };
 };

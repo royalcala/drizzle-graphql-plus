@@ -273,10 +273,6 @@ export const generateTypeDefs = (
     // Generate insert input type
     const insertFields: string[] = [];
     for (const [columnName, column] of Object.entries(tableInfo.columns)) {
-      // Skip auto-increment fields
-      if (column.hasDefault || column.columnType === "SQLiteSerial") {
-        continue;
-      }
       const typeStr = columnToSDL(
         column as Column,
         columnName,
@@ -284,6 +280,7 @@ export const generateTypeDefs = (
         false
       );
       // Make nullable for insert (remove ! if present)
+      // Columns with defaults or auto-increment are optional
       const nullableType = typeStr.endsWith("!")
         ? typeStr.slice(0, -1)
         : typeStr;

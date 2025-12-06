@@ -83,11 +83,16 @@ const buildWhereClause = (tableInfo: TableInfo, where?: WhereInput) => {
   return and(...conditions);
 };
 
+export type MutationResolvers = Record<
+  string,
+  (...args: any[]) => Promise<any>
+>;
+
 export const generateMutations = (
   db: BaseSQLiteDatabase<any, any, any, any>,
   tables: Record<string, TableInfo>
-) => {
-  const mutations: Record<string, any> = {};
+): MutationResolvers => {
+  const mutations: MutationResolvers = {};
 
   for (const [tableName, tableInfo] of Object.entries(tables)) {
     const capitalizedName = capitalize(tableName);

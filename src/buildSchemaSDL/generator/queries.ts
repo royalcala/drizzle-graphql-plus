@@ -317,12 +317,14 @@ const extractRelationsParams = (
   return Object.keys(args).length > 0 ? args : undefined;
 };
 
+export type QueryResolvers = Record<string, (...args: any[]) => Promise<any>>;
+
 export const generateQueries = (
   db: BaseSQLiteDatabase<any, any, any, any>,
   tables: Record<string, TableInfo>,
   relations: Record<string, Record<string, TableNamedRelations>>
-) => {
-  const queries: Record<string, any> = {};
+): QueryResolvers => {
+  const queries: QueryResolvers = {};
 
   for (const [tableName, tableInfo] of Object.entries(tables)) {
     const queryBase = db.query[

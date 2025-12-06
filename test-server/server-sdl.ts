@@ -44,6 +44,7 @@ export const graphqlSchema = makeExecutableSchema({
   typeDefs: extendedTypeDefs,
   resolvers: resolversWithScalars,
 });
+
 writeFileSync("test-server/schema.graphql", extendedTypeDefs);
 // Create Yoga server
 const yoga = createYoga({
@@ -58,7 +59,7 @@ const server = createServer(yoga);
 
 const PORT = 4000;
 
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
   console.log(`🚀 Server ready at http://localhost:${PORT}/graphql`);
   console.log(`📊 GraphiQL interface available for testing`);
 });

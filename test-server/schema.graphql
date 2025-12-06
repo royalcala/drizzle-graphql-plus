@@ -28,6 +28,7 @@ type Comment {
 }
 
 input CommentInsertInput {
+  id: ULID
   text: String
   postId: ULID
   userId: ULID
@@ -215,6 +216,7 @@ type Post {
 }
 
 input PostInsertInput {
+  id: ULID
   title: String
   content: String
   authorId: ULID
@@ -441,6 +443,7 @@ type Reaction {
 }
 
 input ReactionInsertInput {
+  id: ULID
   commentId: ULID
   userId: ULID
   type: ReactionType
@@ -626,6 +629,7 @@ type User {
 }
 
 input UserInsertInput {
+  id: ULID
   name: String
   email: String
   bio: String
