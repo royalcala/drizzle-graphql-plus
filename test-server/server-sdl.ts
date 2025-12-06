@@ -22,6 +22,10 @@ const { typeDefs, resolvers } = buildSchemaSDL(db);
 // Add custom scalar/enum definitions for types marked with customGraphqlType
 const customTypeDefinitions = `
 scalar ULID
+ enum ReactionType {
+    LIKE
+    DISLIKE
+  }
 `;
 
 const extendedTypeDefs = customTypeDefinitions + "\n" + typeDefs;

@@ -234,6 +234,13 @@ export const generateTypeDefs = (
         tableName,
         false
       );
+
+      // Check for custom description
+      const description = (column as any).customGraphqlDescription;
+      if (description) {
+        fields.push(`  """${description}"""`);
+      }
+
       fields.push(`  ${columnName}: ${typeStr}`);
     }
 

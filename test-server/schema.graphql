@@ -1,5 +1,9 @@
 
 scalar ULID
+ enum ReactionType {
+    LIKE
+    DISLIKE
+  }
 
 enum OrderByDirection {
   asc
@@ -12,9 +16,12 @@ input InnerOrder {
 }
 
 type Comment {
+  """Unique identifier for the comment"""
   id: ULID
   text: String!
+  """ID of the post this comment belongs to"""
   postId: ULID!
+  """ID of the user who wrote this comment"""
   userId: ULID!
   post(where: PostFilters): Post
   user(where: UserFilters): User
@@ -196,9 +203,11 @@ input CommentOrderBy {
 }
 
 type Post {
+  """Unique identifier for the post"""
   id: ULID
   title: String!
   content: String!
+  """ID of the author who wrote the post"""
   authorId: ULID!
   name: String
   author(where: UserFilters): User
@@ -420,7 +429,194 @@ input PostOrderBy {
   name: InnerOrder
 }
 
+type Reaction {
+  """Unique identifier for the reaction"""
+  id: ULID
+  """ID of the comment this reaction is on"""
+  commentId: ULID!
+  """ID of the user who reacted"""
+  userId: ULID!
+  """Type of reaction: LIKE or DISLIKE"""
+  type: ReactionType!
+}
+
+input ReactionInsertInput {
+  commentId: ULID
+  userId: ULID
+  type: ReactionType
+}
+
+input ReactionUpdateInput {
+  id: ULID
+  commentId: ULID
+  userId: ULID
+  type: ReactionType
+}
+
+input ReactionIdFiltersOr {
+  eq: ULID
+  ne: ULID
+  lt: ULID
+  lte: ULID
+  gt: ULID
+  gte: ULID
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [ULID!]
+  notInArray: [ULID!]
+  isNull: Boolean
+  isNotNull: Boolean
+}
+
+input ReactionIdFilters {
+  eq: ULID
+  ne: ULID
+  lt: ULID
+  lte: ULID
+  gt: ULID
+  gte: ULID
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [ULID!]
+  notInArray: [ULID!]
+  isNull: Boolean
+  isNotNull: Boolean
+  OR: [ReactionIdFiltersOr!]
+}
+
+input ReactionCommentIdFiltersOr {
+  eq: ULID
+  ne: ULID
+  lt: ULID
+  lte: ULID
+  gt: ULID
+  gte: ULID
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [ULID!]
+  notInArray: [ULID!]
+  isNull: Boolean
+  isNotNull: Boolean
+}
+
+input ReactionCommentIdFilters {
+  eq: ULID
+  ne: ULID
+  lt: ULID
+  lte: ULID
+  gt: ULID
+  gte: ULID
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [ULID!]
+  notInArray: [ULID!]
+  isNull: Boolean
+  isNotNull: Boolean
+  OR: [ReactionCommentIdFiltersOr!]
+}
+
+input ReactionUserIdFiltersOr {
+  eq: ULID
+  ne: ULID
+  lt: ULID
+  lte: ULID
+  gt: ULID
+  gte: ULID
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [ULID!]
+  notInArray: [ULID!]
+  isNull: Boolean
+  isNotNull: Boolean
+}
+
+input ReactionUserIdFilters {
+  eq: ULID
+  ne: ULID
+  lt: ULID
+  lte: ULID
+  gt: ULID
+  gte: ULID
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [ULID!]
+  notInArray: [ULID!]
+  isNull: Boolean
+  isNotNull: Boolean
+  OR: [ReactionUserIdFiltersOr!]
+}
+
+input ReactionTypeFiltersOr {
+  eq: ReactionType
+  ne: ReactionType
+  lt: ReactionType
+  lte: ReactionType
+  gt: ReactionType
+  gte: ReactionType
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [ReactionType!]
+  notInArray: [ReactionType!]
+  isNull: Boolean
+  isNotNull: Boolean
+}
+
+input ReactionTypeFilters {
+  eq: ReactionType
+  ne: ReactionType
+  lt: ReactionType
+  lte: ReactionType
+  gt: ReactionType
+  gte: ReactionType
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [ReactionType!]
+  notInArray: [ReactionType!]
+  isNull: Boolean
+  isNotNull: Boolean
+  OR: [ReactionTypeFiltersOr!]
+}
+
+input ReactionFiltersOr {
+  id: ReactionIdFilters
+  commentId: ReactionCommentIdFilters
+  userId: ReactionUserIdFilters
+  type: ReactionTypeFilters
+}
+
+input ReactionFilters {
+  id: ReactionIdFilters
+  commentId: ReactionCommentIdFilters
+  userId: ReactionUserIdFilters
+  type: ReactionTypeFilters
+  OR: [ReactionFiltersOr!]
+}
+
+input ReactionOrderBy {
+  id: InnerOrder
+  commentId: InnerOrder
+  userId: InnerOrder
+  type: InnerOrder
+}
+
 type User {
+  """Unique identifier for the user"""
   id: ULID
   name: String!
   email: String!
@@ -607,6 +803,7 @@ input UserOrderBy {
 type Query {
   comment(where: CommentFilters, orderBy: CommentOrderBy, limit: Int, offset: Int): [Comment!]!
   post(where: PostFilters, orderBy: PostOrderBy, limit: Int, offset: Int): [Post!]!
+  reaction(where: ReactionFilters, orderBy: ReactionOrderBy, limit: Int, offset: Int): [Reaction!]!
   user(where: UserFilters, orderBy: UserOrderBy, limit: Int, offset: Int): [User!]!
 }
 
@@ -617,6 +814,9 @@ type Mutation {
   insertPost(values: [PostInsertInput!]!): [Post!]!
   updatePost(where: PostFilters, set: PostUpdateInput!): [Post!]!
   deletePost(where: PostFilters): [Post!]!
+  insertReaction(values: [ReactionInsertInput!]!): [Reaction!]!
+  updateReaction(where: ReactionFilters, set: ReactionUpdateInput!): [Reaction!]!
+  deleteReaction(where: ReactionFilters): [Reaction!]!
   insertUser(values: [UserInsertInput!]!): [User!]!
   updateUser(where: UserFilters, set: UserUpdateInput!): [User!]!
   deleteUser(where: UserFilters): [User!]!
