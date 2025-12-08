@@ -21,6 +21,7 @@ const allowedNameChars = /^[a-zA-Z0-9_]+$/;
 // Track custom scalars and enums that need to be defined
 const customScalars = new Set<string>();
 const enumDefinitions = new Map<string, { name: string; values: string[] }>();
+const requiredFieldFilters = new Set<string>(); // Track which field filter types we need
 
 // Convert Drizzle column to SDL type string
 const columnToSDL = (
@@ -221,6 +222,7 @@ export const generateTypeDefs = (
   // Reset global tracking
   customScalars.clear();
   enumDefinitions.clear();
+  requiredFieldFilters.clear();
 
   for (const [tableName, tableInfo] of Object.entries(tables)) {
     const typeName = capitalize(tableName);
@@ -308,7 +310,8 @@ export const generateTypeDefs = (
       `input ${typeName}UpdateInput {\n${updateFields.join("\n")}\n}`
     );
 
-    // Generate column filter types (like the existing implementation)
+    // Generate where input type (columns reference their types directly with operators)
+    const whereFields: string[] = [];
     for (const [columnName, column] of Object.entries(tableInfo.columns)) {
       const typeStr = columnToSDL(
         column as Column,
@@ -316,52 +319,21 @@ export const generateTypeDefs = (
         tableName,
         true
       );
-      const filterName = `${typeName}${capitalize(columnName)}Filters`;
 
-      const filterFields: string[] = [];
-      filterFields.push(`  eq: ${typeStr}`);
-      filterFields.push(`  ne: ${typeStr}`);
-      filterFields.push(`  lt: ${typeStr}`);
-      filterFields.push(`  lte: ${typeStr}`);
-      filterFields.push(`  gt: ${typeStr}`);
-      filterFields.push(`  gte: ${typeStr}`);
-      filterFields.push(`  like: String`);
-      filterFields.push(`  notLike: String`);
-      filterFields.push(`  ilike: String`);
-      filterFields.push(`  notIlike: String`);
-      filterFields.push(`  inArray: [${typeStr}!]`);
-      filterFields.push(`  notInArray: [${typeStr}!]`);
-      filterFields.push(`  isNull: Boolean`);
-      filterFields.push(`  isNotNull: Boolean`);
+      // Create a normalized type name for the filter
+      const normalizedType = typeStr.replace(/[^a-zA-Z0-9]/g, "");
+      const filterTypeName = `${normalizedType}FieldFilter`;
 
-      // Create OR input (without OR field to avoid recursion)
-      const orFilterName = `${typeName}${capitalize(columnName)}FiltersOr`;
-      typeDefs.push(`input ${orFilterName} {\n${filterFields.join("\n")}\n}`);
+      // Track that we need this filter type
+      requiredFieldFilters.add(
+        JSON.stringify({ normalizedType, baseType: typeStr })
+      );
 
-      // Create main filter with OR support
-      filterFields.push(`  OR: [${orFilterName}!]`);
-      typeDefs.push(`input ${filterName} {\n${filterFields.join("\n")}\n}`);
-    }
-
-    // Generate where input type (using column filters)
-    const whereFields: string[] = [];
-    for (const columnName of Object.keys(tableInfo.columns)) {
-      const filterName = `${typeName}${capitalize(columnName)}Filters`;
-      whereFields.push(`  ${columnName}: ${filterName}`);
+      whereFields.push(`  ${columnName}: ${filterTypeName}`);
     }
 
     // Add table-level OR field
-    whereFields.push(`  OR: [${typeName}FiltersOr!]`);
-
-    // Create FiltersOr type (without OR to avoid recursion)
-    const filtersOrFields: string[] = [];
-    for (const columnName of Object.keys(tableInfo.columns)) {
-      const filterName = `${typeName}${capitalize(columnName)}Filters`;
-      filtersOrFields.push(`  ${columnName}: ${filterName}`);
-    }
-    typeDefs.push(
-      `input ${typeName}FiltersOr {\n${filtersOrFields.join("\n")}\n}`
-    );
+    whereFields.push(`  OR: [${typeName}Filters!]`);
 
     typeDefs.push(`input ${typeName}Filters {\n${whereFields.join("\n")}\n}`);
 
@@ -403,6 +375,35 @@ export const generateTypeDefs = (
   direction: OrderByDirection!
   priority: Int!
 }`);
+
+  // Add generic field filter types (one per unique base type)
+  const filterTypesAdded = new Set<string>();
+  for (const filterInfoJson of requiredFieldFilters) {
+    const { normalizedType, baseType } = JSON.parse(filterInfoJson);
+    const filterTypeName = `${normalizedType}FieldFilter`;
+
+    if (filterTypesAdded.has(filterTypeName)) continue;
+    filterTypesAdded.add(filterTypeName);
+
+    const filterFields: string[] = [];
+    filterFields.push(`  eq: ${baseType}`);
+    filterFields.push(`  ne: ${baseType}`);
+    filterFields.push(`  lt: ${baseType}`);
+    filterFields.push(`  lte: ${baseType}`);
+    filterFields.push(`  gt: ${baseType}`);
+    filterFields.push(`  gte: ${baseType}`);
+    filterFields.push(`  like: String`);
+    filterFields.push(`  notLike: String`);
+    filterFields.push(`  ilike: String`);
+    filterFields.push(`  notIlike: String`);
+    filterFields.push(`  inArray: [${baseType}!]`);
+    filterFields.push(`  notInArray: [${baseType}!]`);
+    filterFields.push(`  isNull: Boolean`);
+    filterFields.push(`  isNotNull: Boolean`);
+    filterFields.push(`  OR: [${filterTypeName}!]`);
+
+    allDefs.push(`input ${filterTypeName} {\n${filterFields.join("\n")}\n}`);
+  }
 
   // Add type definitions
   allDefs.push(...typeDefs);

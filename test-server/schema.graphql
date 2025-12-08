@@ -15,6 +15,60 @@ input InnerOrder {
   priority: Int!
 }
 
+input ULIDFieldFilter {
+  eq: ULID
+  ne: ULID
+  lt: ULID
+  lte: ULID
+  gt: ULID
+  gte: ULID
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [ULID!]
+  notInArray: [ULID!]
+  isNull: Boolean
+  isNotNull: Boolean
+  OR: [ULIDFieldFilter!]
+}
+
+input StringFieldFilter {
+  eq: String
+  ne: String
+  lt: String
+  lte: String
+  gt: String
+  gte: String
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [String!]
+  notInArray: [String!]
+  isNull: Boolean
+  isNotNull: Boolean
+  OR: [StringFieldFilter!]
+}
+
+input ReactionTypeFieldFilter {
+  eq: ReactionType
+  ne: ReactionType
+  lt: ReactionType
+  lte: ReactionType
+  gt: ReactionType
+  gte: ReactionType
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [ReactionType!]
+  notInArray: [ReactionType!]
+  isNull: Boolean
+  isNotNull: Boolean
+  OR: [ReactionTypeFieldFilter!]
+}
+
 type Comment {
   """Unique identifier for the comment"""
   id: ULID
@@ -41,159 +95,12 @@ input CommentUpdateInput {
   userId: ULID
 }
 
-input CommentIdFiltersOr {
-  eq: ULID
-  ne: ULID
-  lt: ULID
-  lte: ULID
-  gt: ULID
-  gte: ULID
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [ULID!]
-  notInArray: [ULID!]
-  isNull: Boolean
-  isNotNull: Boolean
-}
-
-input CommentIdFilters {
-  eq: ULID
-  ne: ULID
-  lt: ULID
-  lte: ULID
-  gt: ULID
-  gte: ULID
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [ULID!]
-  notInArray: [ULID!]
-  isNull: Boolean
-  isNotNull: Boolean
-  OR: [CommentIdFiltersOr!]
-}
-
-input CommentTextFiltersOr {
-  eq: String
-  ne: String
-  lt: String
-  lte: String
-  gt: String
-  gte: String
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [String!]
-  notInArray: [String!]
-  isNull: Boolean
-  isNotNull: Boolean
-}
-
-input CommentTextFilters {
-  eq: String
-  ne: String
-  lt: String
-  lte: String
-  gt: String
-  gte: String
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [String!]
-  notInArray: [String!]
-  isNull: Boolean
-  isNotNull: Boolean
-  OR: [CommentTextFiltersOr!]
-}
-
-input CommentPostIdFiltersOr {
-  eq: ULID
-  ne: ULID
-  lt: ULID
-  lte: ULID
-  gt: ULID
-  gte: ULID
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [ULID!]
-  notInArray: [ULID!]
-  isNull: Boolean
-  isNotNull: Boolean
-}
-
-input CommentPostIdFilters {
-  eq: ULID
-  ne: ULID
-  lt: ULID
-  lte: ULID
-  gt: ULID
-  gte: ULID
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [ULID!]
-  notInArray: [ULID!]
-  isNull: Boolean
-  isNotNull: Boolean
-  OR: [CommentPostIdFiltersOr!]
-}
-
-input CommentUserIdFiltersOr {
-  eq: ULID
-  ne: ULID
-  lt: ULID
-  lte: ULID
-  gt: ULID
-  gte: ULID
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [ULID!]
-  notInArray: [ULID!]
-  isNull: Boolean
-  isNotNull: Boolean
-}
-
-input CommentUserIdFilters {
-  eq: ULID
-  ne: ULID
-  lt: ULID
-  lte: ULID
-  gt: ULID
-  gte: ULID
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [ULID!]
-  notInArray: [ULID!]
-  isNull: Boolean
-  isNotNull: Boolean
-  OR: [CommentUserIdFiltersOr!]
-}
-
-input CommentFiltersOr {
-  id: CommentIdFilters
-  text: CommentTextFilters
-  postId: CommentPostIdFilters
-  userId: CommentUserIdFilters
-}
-
 input CommentFilters {
-  id: CommentIdFilters
-  text: CommentTextFilters
-  postId: CommentPostIdFilters
-  userId: CommentUserIdFilters
-  OR: [CommentFiltersOr!]
+  id: ULIDFieldFilter
+  text: StringFieldFilter
+  postId: ULIDFieldFilter
+  userId: ULIDFieldFilter
+  OR: [CommentFilters!]
 }
 
 input CommentOrderBy {
@@ -231,196 +138,13 @@ input PostUpdateInput {
   name: String
 }
 
-input PostIdFiltersOr {
-  eq: ULID
-  ne: ULID
-  lt: ULID
-  lte: ULID
-  gt: ULID
-  gte: ULID
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [ULID!]
-  notInArray: [ULID!]
-  isNull: Boolean
-  isNotNull: Boolean
-}
-
-input PostIdFilters {
-  eq: ULID
-  ne: ULID
-  lt: ULID
-  lte: ULID
-  gt: ULID
-  gte: ULID
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [ULID!]
-  notInArray: [ULID!]
-  isNull: Boolean
-  isNotNull: Boolean
-  OR: [PostIdFiltersOr!]
-}
-
-input PostTitleFiltersOr {
-  eq: String
-  ne: String
-  lt: String
-  lte: String
-  gt: String
-  gte: String
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [String!]
-  notInArray: [String!]
-  isNull: Boolean
-  isNotNull: Boolean
-}
-
-input PostTitleFilters {
-  eq: String
-  ne: String
-  lt: String
-  lte: String
-  gt: String
-  gte: String
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [String!]
-  notInArray: [String!]
-  isNull: Boolean
-  isNotNull: Boolean
-  OR: [PostTitleFiltersOr!]
-}
-
-input PostContentFiltersOr {
-  eq: String
-  ne: String
-  lt: String
-  lte: String
-  gt: String
-  gte: String
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [String!]
-  notInArray: [String!]
-  isNull: Boolean
-  isNotNull: Boolean
-}
-
-input PostContentFilters {
-  eq: String
-  ne: String
-  lt: String
-  lte: String
-  gt: String
-  gte: String
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [String!]
-  notInArray: [String!]
-  isNull: Boolean
-  isNotNull: Boolean
-  OR: [PostContentFiltersOr!]
-}
-
-input PostAuthorIdFiltersOr {
-  eq: ULID
-  ne: ULID
-  lt: ULID
-  lte: ULID
-  gt: ULID
-  gte: ULID
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [ULID!]
-  notInArray: [ULID!]
-  isNull: Boolean
-  isNotNull: Boolean
-}
-
-input PostAuthorIdFilters {
-  eq: ULID
-  ne: ULID
-  lt: ULID
-  lte: ULID
-  gt: ULID
-  gte: ULID
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [ULID!]
-  notInArray: [ULID!]
-  isNull: Boolean
-  isNotNull: Boolean
-  OR: [PostAuthorIdFiltersOr!]
-}
-
-input PostNameFiltersOr {
-  eq: String
-  ne: String
-  lt: String
-  lte: String
-  gt: String
-  gte: String
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [String!]
-  notInArray: [String!]
-  isNull: Boolean
-  isNotNull: Boolean
-}
-
-input PostNameFilters {
-  eq: String
-  ne: String
-  lt: String
-  lte: String
-  gt: String
-  gte: String
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [String!]
-  notInArray: [String!]
-  isNull: Boolean
-  isNotNull: Boolean
-  OR: [PostNameFiltersOr!]
-}
-
-input PostFiltersOr {
-  id: PostIdFilters
-  title: PostTitleFilters
-  content: PostContentFilters
-  authorId: PostAuthorIdFilters
-  name: PostNameFilters
-}
-
 input PostFilters {
-  id: PostIdFilters
-  title: PostTitleFilters
-  content: PostContentFilters
-  authorId: PostAuthorIdFilters
-  name: PostNameFilters
-  OR: [PostFiltersOr!]
+  id: ULIDFieldFilter
+  title: StringFieldFilter
+  content: StringFieldFilter
+  authorId: ULIDFieldFilter
+  name: StringFieldFilter
+  OR: [PostFilters!]
 }
 
 input PostOrderBy {
@@ -456,159 +180,12 @@ input ReactionUpdateInput {
   type: ReactionType
 }
 
-input ReactionIdFiltersOr {
-  eq: ULID
-  ne: ULID
-  lt: ULID
-  lte: ULID
-  gt: ULID
-  gte: ULID
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [ULID!]
-  notInArray: [ULID!]
-  isNull: Boolean
-  isNotNull: Boolean
-}
-
-input ReactionIdFilters {
-  eq: ULID
-  ne: ULID
-  lt: ULID
-  lte: ULID
-  gt: ULID
-  gte: ULID
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [ULID!]
-  notInArray: [ULID!]
-  isNull: Boolean
-  isNotNull: Boolean
-  OR: [ReactionIdFiltersOr!]
-}
-
-input ReactionCommentIdFiltersOr {
-  eq: ULID
-  ne: ULID
-  lt: ULID
-  lte: ULID
-  gt: ULID
-  gte: ULID
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [ULID!]
-  notInArray: [ULID!]
-  isNull: Boolean
-  isNotNull: Boolean
-}
-
-input ReactionCommentIdFilters {
-  eq: ULID
-  ne: ULID
-  lt: ULID
-  lte: ULID
-  gt: ULID
-  gte: ULID
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [ULID!]
-  notInArray: [ULID!]
-  isNull: Boolean
-  isNotNull: Boolean
-  OR: [ReactionCommentIdFiltersOr!]
-}
-
-input ReactionUserIdFiltersOr {
-  eq: ULID
-  ne: ULID
-  lt: ULID
-  lte: ULID
-  gt: ULID
-  gte: ULID
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [ULID!]
-  notInArray: [ULID!]
-  isNull: Boolean
-  isNotNull: Boolean
-}
-
-input ReactionUserIdFilters {
-  eq: ULID
-  ne: ULID
-  lt: ULID
-  lte: ULID
-  gt: ULID
-  gte: ULID
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [ULID!]
-  notInArray: [ULID!]
-  isNull: Boolean
-  isNotNull: Boolean
-  OR: [ReactionUserIdFiltersOr!]
-}
-
-input ReactionTypeFiltersOr {
-  eq: ReactionType
-  ne: ReactionType
-  lt: ReactionType
-  lte: ReactionType
-  gt: ReactionType
-  gte: ReactionType
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [ReactionType!]
-  notInArray: [ReactionType!]
-  isNull: Boolean
-  isNotNull: Boolean
-}
-
-input ReactionTypeFilters {
-  eq: ReactionType
-  ne: ReactionType
-  lt: ReactionType
-  lte: ReactionType
-  gt: ReactionType
-  gte: ReactionType
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [ReactionType!]
-  notInArray: [ReactionType!]
-  isNull: Boolean
-  isNotNull: Boolean
-  OR: [ReactionTypeFiltersOr!]
-}
-
-input ReactionFiltersOr {
-  id: ReactionIdFilters
-  commentId: ReactionCommentIdFilters
-  userId: ReactionUserIdFilters
-  type: ReactionTypeFilters
-}
-
 input ReactionFilters {
-  id: ReactionIdFilters
-  commentId: ReactionCommentIdFilters
-  userId: ReactionUserIdFilters
-  type: ReactionTypeFilters
-  OR: [ReactionFiltersOr!]
+  id: ULIDFieldFilter
+  commentId: ULIDFieldFilter
+  userId: ULIDFieldFilter
+  type: ReactionTypeFieldFilter
+  OR: [ReactionFilters!]
 }
 
 input ReactionOrderBy {
@@ -642,159 +219,12 @@ input UserUpdateInput {
   bio: String
 }
 
-input UserIdFiltersOr {
-  eq: ULID
-  ne: ULID
-  lt: ULID
-  lte: ULID
-  gt: ULID
-  gte: ULID
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [ULID!]
-  notInArray: [ULID!]
-  isNull: Boolean
-  isNotNull: Boolean
-}
-
-input UserIdFilters {
-  eq: ULID
-  ne: ULID
-  lt: ULID
-  lte: ULID
-  gt: ULID
-  gte: ULID
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [ULID!]
-  notInArray: [ULID!]
-  isNull: Boolean
-  isNotNull: Boolean
-  OR: [UserIdFiltersOr!]
-}
-
-input UserNameFiltersOr {
-  eq: String
-  ne: String
-  lt: String
-  lte: String
-  gt: String
-  gte: String
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [String!]
-  notInArray: [String!]
-  isNull: Boolean
-  isNotNull: Boolean
-}
-
-input UserNameFilters {
-  eq: String
-  ne: String
-  lt: String
-  lte: String
-  gt: String
-  gte: String
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [String!]
-  notInArray: [String!]
-  isNull: Boolean
-  isNotNull: Boolean
-  OR: [UserNameFiltersOr!]
-}
-
-input UserEmailFiltersOr {
-  eq: String
-  ne: String
-  lt: String
-  lte: String
-  gt: String
-  gte: String
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [String!]
-  notInArray: [String!]
-  isNull: Boolean
-  isNotNull: Boolean
-}
-
-input UserEmailFilters {
-  eq: String
-  ne: String
-  lt: String
-  lte: String
-  gt: String
-  gte: String
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [String!]
-  notInArray: [String!]
-  isNull: Boolean
-  isNotNull: Boolean
-  OR: [UserEmailFiltersOr!]
-}
-
-input UserBioFiltersOr {
-  eq: String
-  ne: String
-  lt: String
-  lte: String
-  gt: String
-  gte: String
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [String!]
-  notInArray: [String!]
-  isNull: Boolean
-  isNotNull: Boolean
-}
-
-input UserBioFilters {
-  eq: String
-  ne: String
-  lt: String
-  lte: String
-  gt: String
-  gte: String
-  like: String
-  notLike: String
-  ilike: String
-  notIlike: String
-  inArray: [String!]
-  notInArray: [String!]
-  isNull: Boolean
-  isNotNull: Boolean
-  OR: [UserBioFiltersOr!]
-}
-
-input UserFiltersOr {
-  id: UserIdFilters
-  name: UserNameFilters
-  email: UserEmailFilters
-  bio: UserBioFilters
-}
-
 input UserFilters {
-  id: UserIdFilters
-  name: UserNameFilters
-  email: UserEmailFilters
-  bio: UserBioFilters
-  OR: [UserFiltersOr!]
+  id: ULIDFieldFilter
+  name: StringFieldFilter
+  email: StringFieldFilter
+  bio: StringFieldFilter
+  OR: [UserFilters!]
 }
 
 input UserOrderBy {
