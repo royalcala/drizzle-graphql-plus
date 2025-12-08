@@ -6,7 +6,8 @@ import { setCustomGraphQL } from "../src/index";
 export const user = sqliteTable("user", {
   id: text("id")
     .primaryKey()
-    .$defaultFn(() => generateUlid()),
+    .$defaultFn(() => generateUlid())
+    .notNull(),
   name: text("name").notNull(),
   email: text("email").notNull(),
   bio: text("bio"),
@@ -25,7 +26,8 @@ export const post = sqliteTable("post", {
 export const comment = sqliteTable("comment", {
   id: text("id")
     .primaryKey()
-    .$defaultFn(() => generateUlid()),
+    .$defaultFn(() => generateUlid())
+    .notNull(),
   text: text("text").notNull(),
   postId: text("post_id").notNull(),
   userId: text("user_id").notNull(),
@@ -36,7 +38,8 @@ export type ReactionTypes = "LIKE" | "DISLIKE";
 export const reaction = sqliteTable("reaction", {
   id: text("id")
     .primaryKey()
-    .$defaultFn(() => generateUlid()),
+    .$defaultFn(() => generateUlid())
+    .notNull(),
   commentId: text("comment_id").notNull(),
   userId: text("user_id").notNull(),
   type: text("type").$type<ReactionTypes>().notNull(),

@@ -137,12 +137,9 @@ const columnToSDL = (
   }
 
   // Apply non-null wrapper if needed
-  if (
-    !forceNullable &&
-    column.notNull &&
-    !column.hasDefault &&
-    !column.defaultFn
-  ) {
+  // Note: hasDefault and defaultFn don't affect nullability of the field itself,
+  // only whether it's required in InsertInput
+  if (!forceNullable && column.notNull) {
     return `${baseType}!`;
   }
 

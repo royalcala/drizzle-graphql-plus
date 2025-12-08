@@ -71,7 +71,7 @@ input ReactionTypeFieldFilter {
 
 type Comment {
   """Unique identifier for the comment"""
-  id: ULID
+  id: ULID!
   text: String!
   """ID of the post this comment belongs to"""
   postId: ULID!
@@ -112,7 +112,7 @@ input CommentOrderBy {
 
 type Post {
   """Unique identifier for the post"""
-  id: ULID
+  id: ULID!
   title: String!
   content: String!
   """ID of the author who wrote the post"""
@@ -157,7 +157,7 @@ input PostOrderBy {
 
 type Reaction {
   """Unique identifier for the reaction"""
-  id: ULID
+  id: ULID!
   """ID of the comment this reaction is on"""
   commentId: ULID!
   """ID of the user who reacted"""
@@ -197,7 +197,7 @@ input ReactionOrderBy {
 
 type User {
   """Unique identifier for the user"""
-  id: ULID
+  id: ULID!
   name: String!
   email: String!
   bio: String
