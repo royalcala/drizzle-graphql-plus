@@ -73,9 +73,7 @@ type Comment {
   """Unique identifier for the comment"""
   id: ULID!
   text: String!
-  """ID of the post this comment belongs to"""
   postId: ULID!
-  """ID of the user who wrote this comment"""
   userId: ULID!
   post(where: PostFilters): Post
   user(where: UserFilters): User
@@ -115,7 +113,6 @@ type Post {
   id: ULID!
   title: String!
   content: String!
-  """ID of the author who wrote the post"""
   authorId: ULID!
   name: String
   author(where: UserFilters): User
@@ -158,32 +155,30 @@ input PostOrderBy {
 type Reaction {
   """Unique identifier for the reaction"""
   id: ULID!
-  """ID of the comment this reaction is on"""
-  commentId: ULID!
-  """ID of the user who reacted"""
-  userId: ULID!
+  commentId: String!
+  userId: String!
   """Type of reaction: LIKE or DISLIKE"""
   type: ReactionType!
 }
 
 input ReactionInsertInput {
   id: ULID
-  commentId: ULID
-  userId: ULID
+  commentId: String
+  userId: String
   type: ReactionType
 }
 
 input ReactionUpdateInput {
   id: ULID
-  commentId: ULID
-  userId: ULID
+  commentId: String
+  userId: String
   type: ReactionType
 }
 
 input ReactionFilters {
   id: ULIDFieldFilter
-  commentId: ULIDFieldFilter
-  userId: ULIDFieldFilter
+  commentId: StringFieldFilter
+  userId: StringFieldFilter
   type: ReactionTypeFieldFilter
   OR: [ReactionFilters!]
 }

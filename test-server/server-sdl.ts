@@ -45,7 +45,7 @@ export const graphqlSchema = makeExecutableSchema({
   resolvers: resolversWithScalars,
 });
 
-writeFileSync("test-server/schema.graphql", extendedTypeDefs);
+writeFileSync("test-server/auto-generated-schema.graphql", extendedTypeDefs);
 // Create Yoga server
 const yoga = createYoga({
   schema: graphqlSchema,

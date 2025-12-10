@@ -51,29 +51,29 @@ setCustomGraphQL(user, {
 });
 setCustomGraphQL(post, {
   id: { type: "ULID", description: "Unique identifier for the post" },
-  authorId: {
-    type: "ULID",
-    description: "ID of the author who wrote the post",
-  },
+  // authorId: {
+  //   type: "ULID",
+  //   description: "ID of the author who wrote the post",
+  // },
 });
 setCustomGraphQL(comment, {
   id: { type: "ULID", description: "Unique identifier for the comment" },
-  postId: {
-    type: "ULID",
-    description: "ID of the post this comment belongs to",
-  },
-  userId: {
-    type: "ULID",
-    description: "ID of the user who wrote this comment",
-  },
+  // postId: {
+  //   type: "ULID",
+  //   description: "ID of the post this comment belongs to",
+  // },
+  // userId: {
+  //   type: "ULID",
+  //   description: "ID of the user who wrote this comment",
+  // },
 });
 setCustomGraphQL(reaction, {
   id: { type: "ULID", description: "Unique identifier for the reaction" },
-  commentId: {
-    type: "ULID",
-    description: "ID of the comment this reaction is on",
-  },
-  userId: { type: "ULID", description: "ID of the user who reacted" },
+  // commentId: {
+  //   type: "ULID",
+  //   description: "ID of the comment this reaction is on",
+  // },
+  // userId: { type: "ULID", description: "ID of the user who reacted" },
   type: {
     type: "ReactionType",
     description: "Type of reaction: LIKE or DISLIKE",

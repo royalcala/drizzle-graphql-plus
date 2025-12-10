@@ -22,6 +22,7 @@ const allowedNameChars = /^[a-zA-Z0-9_]+$/;
 const customScalars = new Set<string>();
 const enumDefinitions = new Map<string, { name: string; values: string[] }>();
 const requiredFieldFilters = new Set<string>(); // Track which field filter types we need
+const foreignKeyTypes = new Map<string, string>(); // Track inferred types for foreign keys: "tableName.columnName" -> "ULID"
 
 // Convert Drizzle column to SDL type string
 const columnToSDL = (
@@ -38,101 +39,108 @@ const columnToSDL = (
     baseType = (column as any).customGraphqlType;
     // Don't add to customScalars - user will define it themselves
   } else {
-    switch (column.dataType) {
-      case "boolean":
-        baseType = "Boolean";
-        break;
+    // Check if this is a foreign key with an inferred type
+    const foreignKeyType = foreignKeyTypes.get(`${tableName}.${columnName}`);
+    if (foreignKeyType) {
+      baseType = foreignKeyType;
+      // Don't add to customScalars - will be defined by user
+    } else {
+      switch (column.dataType) {
+        case "boolean":
+          baseType = "Boolean";
+          break;
 
-      case "json":
-        if (column.columnType === "PgGeometryObject") {
-          baseType = "PgGeometryObject";
-          customScalars.add("PgGeometryObject");
-        } else {
-          baseType = "JSON";
-          customScalars.add("JSON");
-        }
-        break;
-
-      case "date":
-        baseType = "Date";
-        customScalars.add("Date");
-        break;
-
-      case "string":
-        if (column.enumValues?.length) {
-          const enumName = `${capitalize(tableName)}${capitalize(
-            columnName
-          )}Enum`;
-          baseType = enumName;
-
-          // Store enum definition
-          if (!enumDefinitions.has(enumName)) {
-            enumDefinitions.set(enumName, {
-              name: enumName,
-              values: column.enumValues.map((e, index) =>
-                allowedNameChars.test(e) ? e : `Option${index}`
-              ),
-            });
+        case "json":
+          if (column.columnType === "PgGeometryObject") {
+            baseType = "PgGeometryObject";
+            customScalars.add("PgGeometryObject");
+          } else {
+            baseType = "JSON";
+            customScalars.add("JSON");
           }
-        } else {
-          baseType = "String";
-        }
-        break;
+          break;
 
-      case "bigint":
-        baseType = "BigInt";
-        customScalars.add("BigInt");
-        break;
+        case "date":
+          baseType = "Date";
+          customScalars.add("Date");
+          break;
 
-      case "number":
-        if (
-          is(column, PgInteger) ||
-          is(column, PgSerial) ||
-          is(column, MySqlInt) ||
-          is(column, MySqlSerial) ||
-          is(column, SQLiteInteger)
-        ) {
-          baseType = "Int";
-        } else {
-          baseType = "Float";
-        }
-        break;
+        case "string":
+          if (column.enumValues?.length) {
+            const enumName = `${capitalize(tableName)}${capitalize(
+              columnName
+            )}Enum`;
+            baseType = enumName;
 
-      case "buffer":
-        baseType = "[Int!]";
-        break;
+            // Store enum definition
+            if (!enumDefinitions.has(enumName)) {
+              enumDefinitions.set(enumName, {
+                name: enumName,
+                values: column.enumValues.map((e, index) =>
+                  allowedNameChars.test(e) ? e : `Option${index}`
+                ),
+              });
+            }
+          } else {
+            baseType = "String";
+          }
+          break;
 
-      case "array":
-        if (column.columnType === "PgVector") {
-          baseType = "[Float!]";
-        } else if (column.columnType === "PgGeometry") {
-          baseType = "[Float!]";
-        } else {
-          // For generic arrays, we'll use a custom scalar
-          const scalarName = `${capitalize(tableName)}${capitalize(
-            columnName
-          )}Array`;
-          baseType = scalarName;
-          customScalars.add(scalarName);
-        }
-        break;
+        case "bigint":
+          baseType = "BigInt";
+          customScalars.add("BigInt");
+          break;
 
-      case "custom":
-      default:
-        // For custom types, use the column type name or generate one from the column name
-        // The columnType is the name given when calling customType()
-        if (column.columnType) {
-          baseType = column.columnType;
-          customScalars.add(column.columnType);
-        } else {
-          // Fallback: create a scalar name from table and column names
-          const customScalarName = `${capitalize(tableName)}${capitalize(
-            columnName
-          )}`;
-          baseType = customScalarName;
-          customScalars.add(customScalarName);
-        }
-        break;
+        case "number":
+          if (
+            is(column, PgInteger) ||
+            is(column, PgSerial) ||
+            is(column, MySqlInt) ||
+            is(column, MySqlSerial) ||
+            is(column, SQLiteInteger)
+          ) {
+            baseType = "Int";
+          } else {
+            baseType = "Float";
+          }
+          break;
+
+        case "buffer":
+          baseType = "[Int!]";
+          break;
+
+        case "array":
+          if (column.columnType === "PgVector") {
+            baseType = "[Float!]";
+          } else if (column.columnType === "PgGeometry") {
+            baseType = "[Float!]";
+          } else {
+            // For generic arrays, we'll use a custom scalar
+            const scalarName = `${capitalize(tableName)}${capitalize(
+              columnName
+            )}Array`;
+            baseType = scalarName;
+            customScalars.add(scalarName);
+          }
+          break;
+
+        case "custom":
+        default:
+          // For custom types, use the column type name or generate one from the column name
+          // The columnType is the name given when calling customType()
+          if (column.columnType) {
+            baseType = column.columnType;
+            customScalars.add(column.columnType);
+          } else {
+            // Fallback: create a scalar name from table and column names
+            const customScalarName = `${capitalize(tableName)}${capitalize(
+              columnName
+            )}`;
+            baseType = customScalarName;
+            customScalars.add(customScalarName);
+          }
+          break;
+      }
     }
   }
 
@@ -220,6 +228,72 @@ export const generateTypeDefs = (
   customScalars.clear();
   enumDefinitions.clear();
   requiredFieldFilters.clear();
+  foreignKeyTypes.clear();
+
+  // First pass: Auto-infer foreign key types from relations
+  // If a foreign key references another table's id, copy the id's custom type
+  for (const [tableName, tableRelations] of Object.entries(relations)) {
+    const tableInfo = tables[tableName];
+    if (!tableInfo) continue;
+
+    for (const [relationName, relationInfo] of Object.entries(tableRelations)) {
+      const relation = relationInfo.relation;
+
+      // Only process "one" relations (foreign keys)
+      if (!is(relation, One)) continue;
+
+      const config = relation.config;
+      if (!config?.fields || !config?.references) continue;
+
+      // Get the referenced table
+      const referencedTableName = relationInfo.targetTableName;
+      const referencedTable = tables[referencedTableName];
+      if (!referencedTable) continue;
+
+      // For each field-reference pair
+      for (let i = 0; i < config.fields.length; i++) {
+        const field = config.fields[i];
+        const reference = config.references[i];
+
+        if (!field || !reference) continue;
+
+        // Get the actual column name (database name) from the field
+        const fieldColumnName = (field as any).name;
+        const referenceColumnName = (reference as any).name;
+
+        // Find the column by its database name, not the JS property name
+        const foreignKeyColumn = Object.values(tableInfo.columns).find(
+          (col: any) => col.name === fieldColumnName
+        );
+        const referencedColumn = Object.values(referencedTable.columns).find(
+          (col: any) => col.name === referenceColumnName
+        );
+
+        if (!foreignKeyColumn || !referencedColumn) continue;
+
+        // Get the JS property name for the foreign key column
+        const foreignKeyPropertyName = Object.keys(tableInfo.columns).find(
+          (key) => tableInfo.columns[key] === foreignKeyColumn
+        );
+
+        if (!foreignKeyPropertyName) continue;
+
+        // If the referenced column has a custom type and the foreign key doesn't already have one
+        const referencedCustomType = (referencedColumn as any)
+          .customGraphqlType;
+        const foreignKeyHasCustomType = !!(foreignKeyColumn as any)
+          .customGraphqlType;
+
+        if (referencedCustomType && !foreignKeyHasCustomType) {
+          // Store the mapping using the JS property name
+          foreignKeyTypes.set(
+            `${tableName}.${foreignKeyPropertyName}`,
+            referencedCustomType
+          );
+        }
+      }
+    }
+  }
 
   for (const [tableName, tableInfo] of Object.entries(tables)) {
     const typeName = capitalize(tableName);
