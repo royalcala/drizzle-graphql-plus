@@ -492,7 +492,7 @@ export const generateQueryTypeDefs = (
 
     // findMany query
     queryFields.push(
-      `  ${tableName}(where: ${typeName}Filters, orderBy: ${typeName}OrderBy, limit: Int, offset: Int): [${typeName}!]!`
+      `  ${tableName}FindMany(where: ${typeName}Filters, orderBy: ${typeName}OrderBy, limit: Int, offset: Int): [${typeName}!]!`
     );
   }
 
@@ -509,17 +509,17 @@ export const generateMutationTypeDefs = (
 
     // insert mutation
     mutationFields.push(
-      `  insert${typeName}(values: [${typeName}InsertInput!]!): [${typeName}!]!`
+      `  ${tableName}InsertMany(values: [${typeName}InsertInput!]!): [${typeName}!]!`
     );
 
     // update mutation
     mutationFields.push(
-      `  update${typeName}(where: ${typeName}Filters, set: ${typeName}UpdateInput!): [${typeName}!]!`
+      `  ${tableName}UpdateMany(where: ${typeName}Filters, set: ${typeName}UpdateInput!): [${typeName}!]!`
     );
 
     // delete mutation
     mutationFields.push(
-      `  delete${typeName}(where: ${typeName}Filters): [${typeName}!]!`
+      `  ${tableName}DeleteMany(where: ${typeName}Filters): [${typeName}!]!`
     );
   }
 

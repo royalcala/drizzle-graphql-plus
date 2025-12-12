@@ -317,6 +317,64 @@ const extractRelationsParams = (
   return Object.keys(args).length > 0 ? args : undefined;
 };
 
+// Shared query executor that can be used by both queries and mutations
+export const createQueryResolver = (
+  queryBase: RelationalQueryBuilder<any, any, any, any>,
+  tableInfo: TableInfo,
+  tables: Record<string, TableInfo>,
+  relations: Record<string, Record<string, TableNamedRelations>>
+) => {
+  return async (
+    parent: any,
+    args: {
+      where?: WhereInput;
+      orderBy?: OrderByInput;
+      limit?: number;
+      offset?: number;
+    },
+    context: any,
+    info: GraphQLResolveInfo
+  ) => {
+    try {
+      const { where, orderBy, limit, offset } = args;
+
+      // Parse GraphQL resolve info
+      const parsedInfo = parseResolveInfo(info, {
+        deep: true,
+      }) as ResolveTree;
+
+      // Collect fields from all types in fieldsByTypeName
+      const allFields: Record<string, ResolveTree> = {};
+      if (parsedInfo.fieldsByTypeName) {
+        for (const fields of Object.values(parsedInfo.fieldsByTypeName)) {
+          Object.assign(allFields, fields);
+        }
+      }
+
+      const result = await queryBase.findMany({
+        columns: extractSelectedColumns(allFields, tableInfo),
+        offset,
+        limit,
+        orderBy: buildOrderByClause(tableInfo, orderBy),
+        where: buildWhereClause(tableInfo, where),
+        with: extractRelationsParams(
+          relations,
+          tables,
+          tableInfo.name,
+          allFields
+        ),
+      });
+
+      return result;
+    } catch (e) {
+      if (typeof e === "object" && e !== null && "message" in e) {
+        throw new GraphQLError(String(e.message));
+      }
+      throw e;
+    }
+  };
+};
+
 export type QueryResolvers = Record<string, (...args: any[]) => Promise<any>>;
 
 export const generateQueries = (
@@ -337,51 +395,13 @@ export const generateQueries = (
       );
     }
 
-    // findMany query
-    queries[tableName] = async (
-      parent: any,
-      args: {
-        where?: WhereInput;
-        orderBy?: OrderByInput;
-        limit?: number;
-        offset?: number;
-      },
-      context: any,
-      info: GraphQLResolveInfo
-    ) => {
-      try {
-        const { where, orderBy, limit, offset } = args;
-
-        // Parse GraphQL resolve info
-        const parsedInfo = parseResolveInfo(info, {
-          deep: true,
-        }) as ResolveTree;
-
-        // Collect fields from all types in fieldsByTypeName
-        const allFields: Record<string, ResolveTree> = {};
-        if (parsedInfo.fieldsByTypeName) {
-          for (const fields of Object.values(parsedInfo.fieldsByTypeName)) {
-            Object.assign(allFields, fields);
-          }
-        }
-
-        const result = await queryBase.findMany({
-          columns: extractSelectedColumns(allFields, tableInfo),
-          offset,
-          limit,
-          orderBy: buildOrderByClause(tableInfo, orderBy),
-          where: buildWhereClause(tableInfo, where),
-          with: extractRelationsParams(relations, tables, tableName, allFields),
-        });
-
-        return result;
-      } catch (e) {
-        if (typeof e === "object" && e !== null && "message" in e) {
-          throw new GraphQLError(String(e.message));
-        }
-        throw e;
-      }
-    };
+    // resolver findMany query
+    queries[`${tableName}FindMany`] = createQueryResolver(
+      queryBase,
+      tableInfo,
+      tables,
+      relations
+    );
   }
 
   return queries;

@@ -1,12 +1,14 @@
-import { eq, and, or, SQL, Column } from "drizzle-orm";
+import { eq, and, or, inArray, SQL, Column } from "drizzle-orm";
 import type { BaseSQLiteDatabase } from "drizzle-orm/sqlite-core";
-import type { TableInfo } from "./types";
-import { GraphQLError } from "graphql";
+import type { RelationalQueryBuilder } from "drizzle-orm/sqlite-core/query-builders/query";
+import type { TableInfo, TableNamedRelations } from "./types";
+import { GraphQLError, type GraphQLResolveInfo } from "graphql";
 import {
   remapFromGraphQLSingleInput,
   remapFromGraphQLArrayInput,
 } from "@/util/data-mappers";
 import { capitalize } from "@/util/case-ops";
+import { createQueryResolver } from "./queries";
 
 type ColumnFilters = {
   eq?: any;
@@ -90,19 +92,50 @@ export type MutationResolvers = Record<
 
 export const generateMutations = (
   db: BaseSQLiteDatabase<any, any, any, any>,
-  tables: Record<string, TableInfo>
+  tables: Record<string, TableInfo>,
+  relations: Record<string, Record<string, TableNamedRelations>>
 ): MutationResolvers => {
   const mutations: MutationResolvers = {};
 
   for (const [tableName, tableInfo] of Object.entries(tables)) {
     const capitalizedName = capitalize(tableName);
 
+    // Get the query base for relational queries
+    const queryBase = db.query[
+      tableName as keyof typeof db.query
+    ] as unknown as RelationalQueryBuilder<any, any, any, any> | undefined;
+
+    if (!queryBase) {
+      throw new Error(
+        `Drizzle-GraphQL Error: Table ${tableName} not found in drizzle instance. Did you forget to pass schema to drizzle constructor?`
+      );
+    }
+
+    // Find the primary key column (assumes it's named 'id' or has primaryKey)
+    const primaryKeyColumn = Object.values(tableInfo.columns).find(
+      (col: any) => col.primary || col.name === "id"
+    );
+
+    if (!primaryKeyColumn) {
+      throw new Error(
+        `Drizzle-GraphQL Error: Table ${tableName} does not have a primary key column`
+      );
+    }
+
+    // Create a query resolver for this table
+    const queryResolver = createQueryResolver(
+      queryBase,
+      tableInfo,
+      tables,
+      relations
+    );
+
     // Insert mutation
-    mutations[`insert${capitalizedName}`] = async (
+    mutations[`${tableName}InsertMany`] = async (
       parent: any,
       args: { values: InsertInput[] },
       context: any,
-      info: any
+      info: GraphQLResolveInfo
     ) => {
       try {
         const { values } = args;
@@ -118,12 +151,27 @@ export const generateMutations = (
         );
 
         // Insert and return the inserted rows
-        const result = await db
+        const insertedRows = await db
           .insert(tableInfo.table)
           .values(remappedValues)
           .returning();
 
-        return result;
+        // Extract IDs from inserted rows
+        const insertedIds = insertedRows.map(
+          (row: any) => row[primaryKeyColumn.name]
+        );
+
+        // Use the query resolver with where clause for the inserted IDs
+        return queryResolver(
+          parent,
+          {
+            where: {
+              [primaryKeyColumn.name]: { inArray: insertedIds },
+            },
+          },
+          context,
+          info
+        );
       } catch (e) {
         if (typeof e === "object" && e !== null && "message" in e) {
           throw new GraphQLError(String(e.message));
@@ -133,11 +181,11 @@ export const generateMutations = (
     };
 
     // Update mutation
-    mutations[`update${capitalizedName}`] = async (
+    mutations[`${tableName}UpdateMany`] = async (
       parent: any,
       args: { where?: WhereInput; set: UpdateInput },
       context: any,
-      info: any
+      info: GraphQLResolveInfo
     ) => {
       try {
         const { where, set } = args;
@@ -158,9 +206,24 @@ export const generateMutations = (
         }
 
         // Execute update with RETURNING
-        const result = await (query as any).returning();
+        const updatedRows = await (query as any).returning();
 
-        return result;
+        // Extract IDs from updated rows
+        const updatedIds = updatedRows.map(
+          (row: any) => row[primaryKeyColumn.name]
+        );
+
+        // Use the query resolver with where clause for the updated IDs
+        return queryResolver(
+          parent,
+          {
+            where: {
+              [primaryKeyColumn.name]: { inArray: updatedIds },
+            },
+          },
+          context,
+          info
+        );
       } catch (e) {
         if (typeof e === "object" && e !== null && "message" in e) {
           throw new GraphQLError(String(e.message));
@@ -170,11 +233,11 @@ export const generateMutations = (
     };
 
     // Delete mutation
-    mutations[`delete${capitalizedName}`] = async (
+    mutations[`${tableName}DeleteMany`] = async (
       parent: any,
       args: { where?: WhereInput },
       context: any,
-      info: any
+      info: GraphQLResolveInfo
     ) => {
       try {
         const { where } = args;

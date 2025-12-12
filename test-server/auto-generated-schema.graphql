@@ -230,23 +230,23 @@ input UserOrderBy {
 }
 
 type Query {
-  comment(where: CommentFilters, orderBy: CommentOrderBy, limit: Int, offset: Int): [Comment!]!
-  post(where: PostFilters, orderBy: PostOrderBy, limit: Int, offset: Int): [Post!]!
-  reaction(where: ReactionFilters, orderBy: ReactionOrderBy, limit: Int, offset: Int): [Reaction!]!
-  user(where: UserFilters, orderBy: UserOrderBy, limit: Int, offset: Int): [User!]!
+  commentFindMany(where: CommentFilters, orderBy: CommentOrderBy, limit: Int, offset: Int): [Comment!]!
+  postFindMany(where: PostFilters, orderBy: PostOrderBy, limit: Int, offset: Int): [Post!]!
+  reactionFindMany(where: ReactionFilters, orderBy: ReactionOrderBy, limit: Int, offset: Int): [Reaction!]!
+  userFindMany(where: UserFilters, orderBy: UserOrderBy, limit: Int, offset: Int): [User!]!
 }
 
 type Mutation {
-  insertComment(values: [CommentInsertInput!]!): [Comment!]!
-  updateComment(where: CommentFilters, set: CommentUpdateInput!): [Comment!]!
-  deleteComment(where: CommentFilters): [Comment!]!
-  insertPost(values: [PostInsertInput!]!): [Post!]!
-  updatePost(where: PostFilters, set: PostUpdateInput!): [Post!]!
-  deletePost(where: PostFilters): [Post!]!
-  insertReaction(values: [ReactionInsertInput!]!): [Reaction!]!
-  updateReaction(where: ReactionFilters, set: ReactionUpdateInput!): [Reaction!]!
-  deleteReaction(where: ReactionFilters): [Reaction!]!
-  insertUser(values: [UserInsertInput!]!): [User!]!
-  updateUser(where: UserFilters, set: UserUpdateInput!): [User!]!
-  deleteUser(where: UserFilters): [User!]!
+  commentInsertMany(values: [CommentInsertInput!]!): [Comment!]!
+  commentUpdateMany(where: CommentFilters, set: CommentUpdateInput!): [Comment!]!
+  commentDeleteMany(where: CommentFilters): [Comment!]!
+  postInsertMany(values: [PostInsertInput!]!): [Post!]!
+  postUpdateMany(where: PostFilters, set: PostUpdateInput!): [Post!]!
+  postDeleteMany(where: PostFilters): [Post!]!
+  reactionInsertMany(values: [ReactionInsertInput!]!): [Reaction!]!
+  reactionUpdateMany(where: ReactionFilters, set: ReactionUpdateInput!): [Reaction!]!
+  reactionDeleteMany(where: ReactionFilters): [Reaction!]!
+  userInsertMany(values: [UserInsertInput!]!): [User!]!
+  userUpdateMany(where: UserFilters, set: UserUpdateInput!): [User!]!
+  userDeleteMany(where: UserFilters): [User!]!
 }

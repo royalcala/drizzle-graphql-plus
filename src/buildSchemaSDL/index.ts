@@ -164,7 +164,7 @@ export const buildSchemaSDL = <
 
   // Generate resolvers
   const queries = generateQueries(db, tables, relations);
-  const mutations = generateMutations(db, tables);
+  const mutations = generateMutations(db, tables, relations);
 
   return {
     typeDefs,
