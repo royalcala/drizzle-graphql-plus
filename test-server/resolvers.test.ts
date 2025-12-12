@@ -234,16 +234,20 @@ describe("Resolver Tests", () => {
       );
 
       expect(data?.userInsertMany as any[]).toHaveLength(2);
-      expect((data?.userInsertMany as any[])[0]).toHaveProperty("id");
-      expect((data?.userInsertMany as any[])[1]).toHaveProperty("id");
-      expect((data?.userInsertMany as any[])[0].name).toBe("User 1");
-      expect((data?.userInsertMany as any[])[1].name).toBe("User 2");
+      const users = data?.userInsertMany as any[];
+
+      // Find users by name since order is not guaranteed
+      const user1 = users.find((u: any) => u.name === "User 1");
+      const user2 = users.find((u: any) => u.name === "User 2");
+
+      expect(user1).toBeDefined();
+      expect(user1).toHaveProperty("id");
+      expect(user2).toBeDefined();
+      expect(user2).toHaveProperty("id");
 
       // Cleanup
-      const userId1 = (data?.userInsertMany as any[])[0].id;
-      const userId2 = (data?.userInsertMany as any[])[1].id;
-      await db.delete(user).where(eq(user.id, userId1));
-      await db.delete(user).where(eq(user.id, userId2));
+      await db.delete(user).where(eq(user.id, user1.id));
+      await db.delete(user).where(eq(user.id, user2.id));
     });
 
     it("should insert user with custom id", async () => {
@@ -401,6 +405,70 @@ describe("Resolver Tests", () => {
         { userId: deleteUserId }
       );
       expect(checkData?.userFindMany as any[]).toHaveLength(0);
+    });
+
+    it("should delete multiple posts and return deleted data", async () => {
+      // Create a user and posts for deletion
+      const deleteUserId = generateUlid();
+      const deletePostId1 = generateUlid();
+      const deletePostId2 = generateUlid();
+
+      await db.insert(user).values({
+        id: deleteUserId,
+        name: "Delete Test User",
+        email: "deletetest@example.com",
+      });
+
+      await db.insert(post).values([
+        {
+          id: deletePostId1,
+          title: "Post 1 to Delete",
+          content: "First post to delete",
+          authorId: deleteUserId,
+        },
+        {
+          id: deletePostId2,
+          title: "Post 2 to Delete",
+          content: "Second post to delete",
+          authorId: deleteUserId,
+        },
+      ]);
+
+      // Delete posts
+      const data = await executeQuery(
+        `
+        mutation($where: PostFilters!) {
+          postDeleteMany(where: $where) {
+            id
+            title
+            content
+          }
+        }
+      `,
+        { where: { authorId: { eq: deleteUserId } } }
+      );
+
+      expect(data?.postDeleteMany as any[]).toHaveLength(2);
+      const deletedPosts = data?.postDeleteMany as any[];
+      const deletedIds = deletedPosts.map((p: any) => p.id);
+      expect(deletedIds).toContain(deletePostId1);
+      expect(deletedIds).toContain(deletePostId2);
+
+      // Verify deletion
+      const checkData = await executeQuery(
+        `
+        query($postId: ULID!) {
+          postFindMany(where: { id: { eq: $postId } }) {
+            id
+          }
+        }
+      `,
+        { postId: deletePostId1 }
+      );
+      expect(checkData?.postFindMany as any[]).toHaveLength(0);
+
+      // Cleanup user
+      await db.delete(user).where(eq(user.id, deleteUserId));
     });
   });
 
