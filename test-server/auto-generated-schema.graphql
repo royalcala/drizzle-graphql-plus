@@ -1,4 +1,5 @@
 
+directive @export(as: String!) on FIELD
 scalar ULID
  enum ReactionType {
     LIKE
@@ -287,10 +288,15 @@ input UserProfileOrderBy {
 
 type Query {
   commentFindMany(where: CommentFilters, orderBy: CommentOrderBy, limit: Int, offset: Int): [Comment!]!
+  commentFindFirst(where: CommentFilters, orderBy: CommentOrderBy): Comment
   postFindMany(where: PostFilters, orderBy: PostOrderBy, limit: Int, offset: Int): [Post!]!
+  postFindFirst(where: PostFilters, orderBy: PostOrderBy): Post
   reactionFindMany(where: ReactionFilters, orderBy: ReactionOrderBy, limit: Int, offset: Int): [Reaction!]!
+  reactionFindFirst(where: ReactionFilters, orderBy: ReactionOrderBy): Reaction
   userFindMany(where: UserFilters, orderBy: UserOrderBy, limit: Int, offset: Int): [User!]!
+  userFindFirst(where: UserFilters, orderBy: UserOrderBy): User
   userProfileFindMany(where: UserProfileFilters, orderBy: UserProfileOrderBy, limit: Int, offset: Int): [UserProfile!]!
+  userProfileFindFirst(where: UserProfileFilters, orderBy: UserProfileOrderBy): UserProfile
 }
 
 type Mutation {

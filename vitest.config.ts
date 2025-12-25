@@ -1,17 +1,21 @@
-import { viteCommonjs } from '@originjs/vite-plugin-commonjs';
-import tsconfigPaths from 'vite-tsconfig-paths';
-import { defineConfig } from 'vitest/config';
+import { viteCommonjs } from "@originjs/vite-plugin-commonjs";
+import tsconfigPaths from "vite-tsconfig-paths";
+import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-	test: {
-		include: ['tests/**/*.test.ts', 'test-server/**/*.test.ts'],
-		isolate: true,
-		typecheck: {
-			tsconfig: 'tsconfig.json',
-		},
-		testTimeout: 100000,
-		hookTimeout: 100000,
-	},
-	plugins: [viteCommonjs(), tsconfigPaths()],
-	resolve: { alias: { graphql: 'graphql/index.js' } },
+  test: {
+    include: [
+      "tests/**/*.test.ts",
+      "test-server/**/*.test.ts",
+      "src/export-tool/**/*.test.ts",
+    ],
+    isolate: true,
+    typecheck: {
+      tsconfig: "tsconfig.json",
+    },
+    testTimeout: 100000,
+    hookTimeout: 100000,
+  },
+  plugins: [viteCommonjs(), tsconfigPaths()],
+  resolve: { alias: { graphql: "graphql/index.js" } },
 });

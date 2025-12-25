@@ -8,9 +8,15 @@ importers:
 
   .:
     dependencies:
+      '@graphql-tools/resolvers-composition':
+        specifier: ^7.0.25
+        version: 7.0.25(graphql@16.8.1)
       '@graphql-tools/schema':
         specifier: ^10.0.30
         version: 10.0.30(graphql@16.8.1)
+      '@graphql-tools/utils':
+        specifier: ^10.11.0
+        version: 10.11.0(graphql@16.8.1)
       graphql-parse-resolve-info:
         specifier: ^4.13.0
         version: 4.13.0(graphql@16.8.1)
@@ -634,6 +640,12 @@ packages:
     peerDependencies:
       graphql: ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
 
+  '@graphql-tools/resolvers-composition@7.0.25':
+    resolution: {integrity: sha512-Nj2TSDafS/x6+aqDTLxQ7xyJooR/0KSIffV36sRrJaB8o+U7cd+5ZA0pfJSe8hfDcIhY8/nP3tfMWcZDgY+DcA==}
+    engines: {node: '>=16.0.0'}
+    peerDependencies:
+      graphql: ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
+
   '@graphql-tools/schema@10.0.30':
     resolution: {integrity: sha512-yPXU17uM/LR90t92yYQqn9mAJNOVZJc0nQtYeZyZeQZeQjwIGlTubvvoDL0fFVk+wZzs4YQOgds2NwSA4npodA==}
     engines: {node: '>=16.0.0'}
@@ -642,12 +654,6 @@ packages:
 
   '@graphql-tools/utils@10.11.0':
     resolution: {integrity: sha512-iBFR9GXIs0gCD+yc3hoNswViL1O5josI33dUqiNStFI/MHLCEPduasceAcazRH77YONKNiviHBV8f7OgcT4o2Q==}
-    engines: {node: '>=16.0.0'}
-    peerDependencies:
-      graphql: ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
-
-  '@graphql-tools/utils@10.2.0':
-    resolution: {integrity: sha512-HYV7dO6pNA2nGKawygaBpk8y+vXOUjjzzO43W/Kb7EPRmXUEQKjHxPYRvQbiF72u1N3XxwGK5jnnFk9WVhUwYw==}
     engines: {node: '>=16.0.0'}
     peerDependencies:
       graphql: ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
@@ -1142,10 +1148,6 @@ packages:
   cpy@11.0.1:
     resolution: {integrity: sha512-VIvf1QNOHnIZ5QT8zWxNJq+YYIpbFhgeMwnVngX+AhhUQd3Rns3x6gcvb0fGpNxZQ0q629mX6+GvDtvbO/Hutg==}
     engines: {node: '>=18'}
-
-  cross-inspect@1.0.0:
-    resolution: {integrity: sha512-4PFfn4b5ZN6FMNGSZlyb7wUhuN8wvj8t/VQHZdM4JsDcruGJ8L2kf9zao98QIrBPFCpdk27qst/AGTl7pL3ypQ==}
-    engines: {node: '>=16.0.0'}
 
   cross-inspect@1.0.1:
     resolution: {integrity: sha512-Pcw1JTvZLSJH83iiGWt6fRcT+BjZlCDRVwYLbUcHzv/CRpB7r0MlSrGbIyQvVSNyGnbt7G4AXuyCiDR3POvZ1A==}
@@ -1739,6 +1741,9 @@ packages:
   lodash.sortby@4.7.0:
     resolution: {integrity: sha512-HDWXG8isMntAyRF5vZ7xKuEvOhT4AhlRt/3czTSjvGUxjYCBVRQY48ViDHyfYz9VIoBkW4TMGQNapx+l3RUwdA==}
 
+  lodash@4.17.21:
+    resolution: {integrity: sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg==}
+
   long@5.2.3:
     resolution: {integrity: sha512-lcHwpNoggQTObv5apGNCTdJrO69eHOZMi4BNC+rTLER8iHAqGrUVeLh/irVIM7zTw2bOXA8T6uNPeujwOLg/2Q==}
 
@@ -1787,6 +1792,10 @@ packages:
 
   micromatch@4.0.7:
     resolution: {integrity: sha512-LPP/3KorzCwBxfeUuZmaR6bG2kdeHSbe0P2tY3FLRU4vYrjYz5hI4QZwV0njUx3jeuKe67YukQ1LSPZBKDqO/Q==}
+    engines: {node: '>=8.6'}
+
+  micromatch@4.0.8:
+    resolution: {integrity: sha512-PXwfBhYu0hBCPw8Dn0E+WDYb7af3dSLVWKi3HGv84IdF4TyFoC0ysxFd0Goxw7nSv4T/PzEJQxsYsEiFCKo2BA==}
     engines: {node: '>=8.6'}
 
   mime-db@1.52.0:
@@ -2943,7 +2952,7 @@ snapshots:
 
   '@graphql-tools/executor@1.2.6(graphql@16.8.1)':
     dependencies:
-      '@graphql-tools/utils': 10.2.0(graphql@16.8.1)
+      '@graphql-tools/utils': 10.11.0(graphql@16.8.1)
       '@graphql-typed-document-node/core': 3.2.0(graphql@16.8.1)
       '@repeaterjs/repeater': 3.0.6
       graphql: 16.8.1
@@ -2954,6 +2963,14 @@ snapshots:
     dependencies:
       '@graphql-tools/utils': 10.11.0(graphql@16.8.1)
       graphql: 16.8.1
+      tslib: 2.8.1
+
+  '@graphql-tools/resolvers-composition@7.0.25(graphql@16.8.1)':
+    dependencies:
+      '@graphql-tools/utils': 10.11.0(graphql@16.8.1)
+      graphql: 16.8.1
+      lodash: 4.17.21
+      micromatch: 4.0.8
       tslib: 2.8.1
 
   '@graphql-tools/schema@10.0.30(graphql@16.8.1)':
@@ -2970,14 +2987,6 @@ snapshots:
       cross-inspect: 1.0.1
       graphql: 16.8.1
       tslib: 2.8.1
-
-  '@graphql-tools/utils@10.2.0(graphql@16.8.1)':
-    dependencies:
-      '@graphql-typed-document-node/core': 3.2.0(graphql@16.8.1)
-      cross-inspect: 1.0.0
-      dset: 3.1.3
-      graphql: 16.8.1
-      tslib: 2.6.2
 
   '@graphql-typed-document-node/core@3.2.0(graphql@16.8.1)':
     dependencies:
@@ -3478,10 +3487,6 @@ snapshots:
       p-filter: 3.0.0
       p-map: 6.0.0
 
-  cross-inspect@1.0.0:
-    dependencies:
-      tslib: 2.8.1
-
   cross-inspect@1.0.1:
     dependencies:
       tslib: 2.8.1
@@ -3916,7 +3921,7 @@ snapshots:
       '@envelop/core': 5.0.1
       '@graphql-tools/executor': 1.2.6(graphql@16.8.1)
       '@graphql-tools/schema': 10.0.30(graphql@16.8.1)
-      '@graphql-tools/utils': 10.2.0(graphql@16.8.1)
+      '@graphql-tools/utils': 10.11.0(graphql@16.8.1)
       '@graphql-yoga/logger': 2.0.0
       '@graphql-yoga/subscription': 5.0.0
       '@whatwg-node/fetch': 0.9.17
@@ -4018,6 +4023,8 @@ snapshots:
 
   lodash.sortby@4.7.0: {}
 
+  lodash@4.17.21: {}
+
   long@5.2.3: {}
 
   loupe@2.3.7:
@@ -4055,6 +4062,11 @@ snapshots:
   merge2@1.4.1: {}
 
   micromatch@4.0.7:
+    dependencies:
+      braces: 3.0.3
+      picomatch: 2.3.1
+
+  micromatch@4.0.8:
     dependencies:
       braces: 3.0.3
       picomatch: 2.3.1

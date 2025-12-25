@@ -16,11 +16,18 @@ const client = createClient({
 // Create Drizzle instance
 const db = drizzle(client, { schema });
 
+import {
+  createExportMiddleware,
+  makeScalarAcceptExports,
+} from "../src/export-tool";
+import { composeResolvers } from "@graphql-tools/resolvers-composition";
+
 // Build GraphQL schema
 const { typeDefs, resolvers } = buildSchemaSDL(db);
 
 // Add custom scalar/enum definitions for types marked with customGraphqlType
 const customTypeDefinitions = `
+directive @export(as: String!) on FIELD
 scalar ULID
  enum ReactionType {
     LIKE
@@ -31,18 +38,25 @@ scalar ULID
 const extendedTypeDefs = customTypeDefinitions + "\n" + typeDefs;
 
 // Add scalar resolvers for custom types
+// Use makeScalarAcceptExports to allow export patterns
+const FlexibleULID = makeScalarAcceptExports(GraphQLULID);
 const customScalarResolvers = {
-  ULID: GraphQLULID,
+  ULID: FlexibleULID,
 };
 
-export const resolversWithScalars = {
+const resolversWithScalars = {
   ...resolvers,
   ...customScalarResolvers,
 };
 
+// Compose resolvers with export middleware
+const composedResolvers = composeResolvers(resolversWithScalars, {
+  "*.*": [createExportMiddleware()],
+});
+
 export const graphqlSchema = makeExecutableSchema({
   typeDefs: extendedTypeDefs,
-  resolvers: resolversWithScalars,
+  resolvers: composedResolvers,
 });
 
 writeFileSync("test-server/auto-generated-schema.graphql", extendedTypeDefs);

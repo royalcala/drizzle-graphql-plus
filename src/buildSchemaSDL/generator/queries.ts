@@ -317,7 +317,7 @@ const extractRelationsParams = (
   return Object.keys(args).length > 0 ? args : undefined;
 };
 
-// Shared query executor that can be used by both queries and mutations
+// Shared query executor for findMany that can be used by both queries and mutations
 export const createQueryResolver = (
   queryBase: RelationalQueryBuilder<any, any, any, any>,
   tableInfo: TableInfo,
@@ -379,6 +379,68 @@ export const createQueryResolver = (
   };
 };
 
+// Query executor for findFirst that returns a single object
+export const createFindFirstResolver = (
+  queryBase: RelationalQueryBuilder<any, any, any, any>,
+  tableInfo: TableInfo,
+  tables: Record<string, TableInfo>,
+  relations: Record<string, Record<string, TableNamedRelations>>
+) => {
+  return async (
+    parent: any,
+    args: {
+      where?: WhereInput;
+      orderBy?: OrderByInput;
+    },
+    context: any,
+    info: GraphQLResolveInfo
+  ) => {
+    try {
+      const { where, orderBy } = args;
+
+      // Parse GraphQL resolve info
+      const parsedInfo = parseResolveInfo(info, {
+        deep: true,
+      }) as ResolveTree;
+
+      // Collect fields from all types in fieldsByTypeName
+      const allFields: Record<string, ResolveTree> = {};
+      if (parsedInfo.fieldsByTypeName) {
+        for (const fields of Object.values(parsedInfo.fieldsByTypeName)) {
+          Object.assign(allFields, fields);
+        }
+      }
+
+      const result = await queryBase.findFirst({
+        columns: extractSelectedColumns(allFields, tableInfo),
+        orderBy: buildOrderByClause(tableInfo, orderBy),
+        where: buildWhereClause(tableInfo, where),
+        with: extractRelationsParams(
+          relations,
+          tables,
+          tableInfo.name,
+          allFields
+        ),
+      });
+
+      // Add _operation field to result if found
+      if (result) {
+        return {
+          ...result,
+          _operation: "READ",
+        };
+      }
+
+      return null;
+    } catch (e) {
+      if (typeof e === "object" && e !== null && "message" in e) {
+        throw new GraphQLError(String(e.message));
+      }
+      throw e;
+    }
+  };
+};
+
 export type QueryResolvers = Record<string, (...args: any[]) => Promise<any>>;
 
 export const generateQueries = (
@@ -401,6 +463,14 @@ export const generateQueries = (
 
     // resolver findMany query
     queries[`${tableName}FindMany`] = createQueryResolver(
+      queryBase,
+      tableInfo,
+      tables,
+      relations
+    );
+
+    // resolver findFirst query
+    queries[`${tableName}FindFirst`] = createFindFirstResolver(
       queryBase,
       tableInfo,
       tables,

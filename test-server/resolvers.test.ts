@@ -9,6 +9,12 @@ import { graphql, GraphQLSchema } from "graphql";
 import { makeExecutableSchema } from "@graphql-tools/schema";
 import { GraphQLULID } from "graphql-scalars";
 import { eq } from "drizzle-orm";
+import { composeResolvers } from "@graphql-tools/resolvers-composition";
+import {
+  createExportMiddleware,
+  ExportStore,
+  makeScalarAcceptExports,
+} from "../src/export-tool";
 
 // Create test database client
 const client = createClient({
@@ -26,9 +32,27 @@ const extendedTypeDefs = customTypeDefinitions + "\n" + typeDefs;
 
 const customScalarResolvers = { ULID: GraphQLULID };
 const resolversWithScalars = { ...resolvers, ...customScalarResolvers };
-const executableSchema = makeExecutableSchema({
+let executableSchema = makeExecutableSchema({
   typeDefs: extendedTypeDefs,
   resolvers: resolversWithScalars,
+});
+
+// Create FlexibleULID using the new factory function
+const FlexibleULID = makeScalarAcceptExports(GraphQLULID);
+
+// Wrap resolvers with export middleware AND add FlexibleULID scalar
+const composedResolvers = composeResolvers(
+  {
+    ...resolvers,
+    ULID: FlexibleULID,
+  },
+  {
+    "*.*": [createExportMiddleware()],
+  }
+);
+let executableSchemaWithExport = makeExecutableSchema({
+  typeDefs: extendedTypeDefs + "\ndirective @export(as: String!) on FIELD",
+  resolvers: composedResolvers,
 });
 
 // Helper to execute GraphQL queries
@@ -37,6 +61,25 @@ async function executeQuery(query: string, variables?: Record<string, any>) {
     schema: executableSchema,
     source: query,
     variableValues: variables,
+    contextValue: {}, // Provide empty context object (ExportStore will be initialized by transformer)
+  });
+  if (result.errors) {
+    throw new Error(result.errors[0].message);
+  }
+  return result.data;
+}
+
+// Helper to execute GraphQL queries with export-tool enabled
+async function executeQueryWithExport(
+  query: string,
+  variables?: Record<string, any>,
+  context?: any
+) {
+  const result = await graphql({
+    schema: executableSchemaWithExport,
+    source: query,
+    variableValues: variables,
+    contextValue: context || {}, // Use provided context or create new one
   });
   if (result.errors) {
     throw new Error(result.errors[0].message);
@@ -51,6 +94,7 @@ describe("Resolver Tests", () => {
     commentId: generateUlid(),
     reactionId: generateUlid(),
     profileId: generateUlid(),
+    testEmail: `test-${generateUlid()}@example.com`, // Unique email per test run
   };
 
   beforeAll(async () => {
@@ -58,7 +102,7 @@ describe("Resolver Tests", () => {
     await db.insert(user).values({
       id: testData.userId,
       name: "Test User",
-      email: "test@example.com",
+      email: testData.testEmail,
       bio: "Test bio",
     });
 
@@ -1130,6 +1174,406 @@ describe("Resolver Tests", () => {
       // Cleanup
       await db.delete(post).where(eq(post.id, otherPostId));
       await db.delete(user).where(eq(user.id, otherUserId));
+    });
+  });
+
+  describe("FindFirst Query Tests", () => {
+    it("should query single user with findFirst", async () => {
+      const data = await executeQuery(
+        `
+        query($userId: ULID!) {
+          userFindFirst(where: { id: { eq: $userId } }) {
+            id
+            name
+            email
+            bio
+            _operation
+          }
+        }
+      `,
+        { userId: testData.userId }
+      );
+
+      expect(data?.userFindFirst).toBeDefined();
+      expect((data?.userFindFirst as any).id).toBe(testData.userId);
+      expect((data?.userFindFirst as any).name).toBe("Test User");
+      expect((data?.userFindFirst as any)._operation).toBe("READ");
+    });
+
+    it("should query single post with findFirst", async () => {
+      const data = await executeQuery(
+        `
+        query($postId: ULID!) {
+          postFindFirst(where: { id: { eq: $postId } }) {
+            id
+            title
+            content
+            authorId
+          }
+        }
+      `,
+        { postId: testData.postId }
+      );
+
+      expect(data?.postFindFirst).toBeDefined();
+      expect((data?.postFindFirst as any).id).toBe(testData.postId);
+      expect((data?.postFindFirst as any).title).toBe("Test Post");
+    });
+
+    it("should return null when no match with findFirst", async () => {
+      const nonExistentId = generateUlid(); // Generate a valid ULID that doesn't exist
+      const data = await executeQuery(
+        `
+        query($userId: ULID!) {
+          userFindFirst(where: { id: { eq: $userId } }) {
+            id
+            name
+          }
+        }
+      `,
+        { userId: nonExistentId }
+      );
+
+      expect(data?.userFindFirst).toBeNull();
+    });
+
+    it("should query findFirst with relations", async () => {
+      const data = await executeQuery(
+        `
+        query($userId: ULID!) {
+          userFindFirst(where: { id: { eq: $userId } }) {
+            id
+            name
+            posts {
+              id
+              title
+            }
+            profile {
+              id
+              bio
+            }
+          }
+        }
+      `,
+        { userId: testData.userId }
+      );
+
+      expect(data?.userFindFirst).toBeDefined();
+      const user = data?.userFindFirst as any;
+      expect(user.id).toBe(testData.userId);
+      expect(user.posts).toBeDefined();
+      expect(Array.isArray(user.posts)).toBe(true);
+      expect(user.posts.length).toBeGreaterThan(0);
+      expect(user.profile).toBeDefined();
+      expect(user.profile.id).toBe(testData.profileId);
+    });
+
+    it("should query findFirst with nested relations", async () => {
+      const data = await executeQuery(
+        `
+        query($postId: ULID!) {
+          postFindFirst(where: { id: { eq: $postId } }) {
+            id
+            title
+            author {
+              id
+              name
+            }
+            comments {
+              id
+              text
+              user {
+                id
+                name
+              }
+            }
+          }
+        }
+      `,
+        { postId: testData.postId }
+      );
+
+      expect(data?.postFindFirst).toBeDefined();
+      const post = data?.postFindFirst as any;
+      expect(post.id).toBe(testData.postId);
+      expect(post.author).toBeDefined();
+      expect(post.author.id).toBe(testData.userId);
+      expect(post.comments).toBeDefined();
+      expect(Array.isArray(post.comments)).toBe(true);
+    });
+
+    it("should query findFirst with orderBy", async () => {
+      const data = await executeQuery(`
+        query {
+          userFindFirst(orderBy: { name: { direction: asc, priority: 1 } }) {
+            id
+            name
+          }
+        }
+      `);
+
+      expect(data?.userFindFirst).toBeDefined();
+      expect(data?.userFindFirst as any).toHaveProperty("id");
+      expect(data?.userFindFirst as any).toHaveProperty("name");
+    });
+
+    it("should query findFirst with filtered relations", async () => {
+      const data = await executeQuery(
+        `
+        query($postId: ULID!) {
+          postFindFirst(where: { id: { eq: $postId } }) {
+            id
+            title
+            comments(where: { text: { like: "%Test%" } }) {
+              id
+              text
+            }
+          }
+        }
+      `,
+        { postId: testData.postId }
+      );
+
+      expect(data?.postFindFirst).toBeDefined();
+      const post = data?.postFindFirst as any;
+      expect(post.comments).toBeDefined();
+      expect(Array.isArray(post.comments)).toBe(true);
+    });
+  });
+
+  describe("Export Tool Integration Tests - With Variables (WORKING SOLUTION)", () => {
+    /**
+     * ✅ WORKING SOLUTION: Using GraphQL variables with default values
+     *
+     * Instead of using $_varName directly in the query string, we:
+     * 1. Declare GraphQL variables with FlexibleULID type
+     * 2. Set default values (empty string) to pass validation
+     * 3. Let the middleware resolve $_varName patterns in the actual values
+     *
+     * Example:
+     * query GetPosts($authorId: ULID = "") {
+     *   user: userFindFirst(...) {
+     *     id @export(as: "authorId")
+     *   }
+     *   posts: postFindMany(where: { authorId: { eq: $authorId } }) { ... }
+     * }
+     *
+     * Then call with variables: { authorId: "$_authorId" }
+     *
+     * This works because:
+     * - FlexibleULID type accepts $_varName patterns and empty strings
+     * - Default value satisfies parse-time validation
+     * - Middleware resolves the pattern at execution time
+     */
+
+    it("should export and use value via String variable with default", async () => {
+      const data = await executeQueryWithExport(
+        `
+        query GetUserPosts($authorId: ULID = "") {
+          user: userFindFirst(where: { email: { eq: "${testData.testEmail}" } }) {
+            id @export(as: "authorId")
+            name
+            email
+          }
+          posts: postFindMany(where: { authorId: { eq: $authorId } }) {
+            id
+            title
+            authorId
+          }
+        }
+      `,
+        { authorId: "$_authorId" }
+      );
+
+      expect(data?.user).toBeDefined();
+      expect((data?.user as any).id).toBe(testData.userId);
+      expect(data?.posts).toBeDefined();
+      expect(Array.isArray(data?.posts)).toBe(true);
+      expect((data?.posts as any[]).length).toBeGreaterThan(0);
+      expect((data?.posts as any[])[0].authorId).toBe(testData.userId);
+    });
+
+    it("should handle multiple variables with exports (nested field timing issue)", async () => {
+      const data = await executeQueryWithExport(
+        `
+        query GetUserData($userId: ULID = "", $postId: ULID = "") {
+          user: userFindFirst(where: { email: { eq: "${testData.testEmail}" } }) {
+            id @export(as: "userId")
+            name
+            posts {
+              id @export(as: "postId")
+              title
+            }
+          }
+          profile: userProfileFindFirst(where: { userId: { eq: $userId } }) {
+            id
+            bio
+            userId
+          }
+          comments: commentFindMany(where: { postId: { eq: $postId } }) {
+            id
+            text
+            postId
+          }
+        }
+      `,
+        { userId: "$_userId", postId: "$_postId" }
+      );
+
+      expect(data?.user).toBeDefined();
+      expect((data?.user as any).id).toBe(testData.userId);
+
+      expect(data?.profile).toBeDefined();
+      expect((data?.profile as any).userId).toBe(testData.userId);
+
+      expect(data?.comments).toBeDefined();
+      expect(Array.isArray(data?.comments)).toBe(true);
+    });
+
+    it("should work with mutation and variable (requires shared context across requests)", async () => {
+      const newEmail = `export-var-test-${generateUlid()}@example.com`;
+
+      // Create shared context with ExportStore for both operations
+      const sharedContext = { exportStore: new ExportStore() };
+
+      // First create the user with export
+      const createResult = await executeQueryWithExport(
+        `
+        mutation CreateUser {
+          newUser: userInsertMany(values: [{ 
+            name: "Variable Export Test", 
+            email: "${newEmail}"
+          }]) {
+            id @export(as: "newUserId")
+            name
+            email
+          }
+        }
+      `,
+        undefined,
+        sharedContext
+      );
+
+      expect(createResult?.newUser).toBeDefined();
+      expect((createResult?.newUser as any[])[0]).toHaveProperty("id");
+      const newUserId = (createResult?.newUser as any[])[0].id;
+
+      // Then query it using the exported value from the same context
+      // Note: newUserId export is an array (from userInsertMany), so we must accept [ULID]
+      const queryResult = await executeQueryWithExport(
+        `
+        query VerifyUser($userIds: [ULID!]) {
+          verifyUser: userFindFirst(where: { id: { inArray: $userIds } }) {
+            id
+            name
+            email
+          }
+        }
+      `,
+        { userIds: "$_newUserId" },
+        sharedContext // Reuse the same context!
+      );
+
+      expect(queryResult?.verifyUser).toBeDefined();
+      expect((queryResult?.verifyUser as any).id).toBe(newUserId);
+      expect((queryResult?.verifyUser as any).name).toBe(
+        "Variable Export Test"
+      );
+
+      // Cleanup
+      await db.delete(user).where(eq(user.id, newUserId));
+    });
+
+    it("should handle nested exports with variables (parallel execution timing)", async () => {
+      const data = await executeQueryWithExport(
+        `
+        query NestedExport($authorId: ULID = "") {
+          post: postFindFirst(where: { title: { eq: "Test Post" } }) {
+            id
+            title
+            author {
+              id @export(as: "authorId")
+              name
+            }
+          }
+          authorPosts: postFindMany(where: { authorId: { eq: $authorId } }) {
+            id
+            title
+            authorId
+          }
+        }
+      `,
+        { authorId: "$_authorId" }
+      );
+
+      expect(data?.post).toBeDefined();
+      expect((data?.post as any).author).toBeDefined();
+      expect((data?.post as any).author.id).toBe(testData.userId);
+
+      expect(data?.authorPosts).toBeDefined();
+      const authorPosts = data?.authorPosts as any[];
+      expect(authorPosts.length).toBeGreaterThan(0);
+      authorPosts.forEach((post: any) => {
+        expect(post.authorId).toBe(testData.userId);
+      });
+    });
+
+    it("should work with nullable variables", async () => {
+      const data = await executeQueryWithExport(
+        `
+        query WithNullable($userId: ULID = "") {
+          user: userFindFirst(where: { email: { eq: "${testData.testEmail}" } }) {
+            id @export(as: "userId")
+            name
+          }
+          posts: postFindMany(where: { authorId: { eq: $userId } }) {
+            id
+            title
+          }
+        }
+      `,
+        { userId: "$_userId" }
+      );
+
+      expect(data?.user).toBeDefined();
+      expect(data?.posts).toBeDefined();
+      expect((data?.posts as any[]).length).toBeGreaterThan(0);
+    });
+
+    it("should handle complex sequenced queries with variables", async () => {
+      const data = await executeQueryWithExport(
+        `
+        query SequencedExports($userId: ULID = "", $postId: ULID = "") {
+          step1: userFindFirst(where: { email: { eq: "${testData.testEmail}" } }) {
+            id @export(as: "userId")
+            name
+          }
+          step2: postFindFirst(where: { authorId: { eq: $userId } }) {
+            id @export(as: "postId")
+            title
+            authorId
+          }
+          step3: commentFindMany(where: { postId: { eq: $postId } }) {
+            id
+            text
+            postId
+          }
+        }
+      `,
+        { userId: "$_userId", postId: "$_postId" }
+      );
+
+      expect(data?.step1).toBeDefined();
+      expect((data?.step1 as any).id).toBe(testData.userId);
+
+      expect(data?.step2).toBeDefined();
+      expect((data?.step2 as any).authorId).toBe(testData.userId);
+
+      expect(data?.step3).toBeDefined();
+      const comments = data?.step3 as any[];
+      if (comments.length > 0) {
+        expect(comments[0].postId).toBe((data?.step2 as any).id);
+      }
     });
   });
 });

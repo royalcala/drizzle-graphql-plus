@@ -509,6 +509,11 @@ export const generateQueryTypeDefs = (
     queryFields.push(
       `  ${tableName}FindMany(where: ${typeName}Filters, orderBy: ${typeName}OrderBy, limit: Int, offset: Int): [${typeName}!]!`
     );
+
+    // findFirst query
+    queryFields.push(
+      `  ${tableName}FindFirst(where: ${typeName}Filters, orderBy: ${typeName}OrderBy): ${typeName}`
+    );
   }
 
   return `type Query {\n${queryFields.join("\n")}\n}`;

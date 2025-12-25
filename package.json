@@ -12,6 +12,7 @@
     "build:pack:publish": "pnpm build && (cd dist && npm pack --pack-destination ..) && mv drizzle-graphql-plus-*.tgz package.tgz && npm publish package.tgz --access public --no-provenance",
     "test": "vitest run",
     "test:resolvers": "npx drizzle-kit push --dialect=sqlite --schema=./test-server/schema.ts --url=file:test-server/test-resolvers.db && vitest run test-server/resolvers.test.ts",
+    "test:export-tool": "vitest run src/export-tool/export-tool.test.ts",
     "test-server:db:push": "npx drizzle-kit push --dialect=sqlite --schema=./test-server/schema.ts --url=file:test-server/test.db",
     "test-server:seed": "tsx test-server/seed.ts",
     "test-server": "pnpm test-server:seed && tsx test-server/server.ts",
@@ -100,7 +101,9 @@
   },
   "homepage": "https://github.com/royalcala/drizzle-graphql-plus",
   "dependencies": {
+    "@graphql-tools/resolvers-composition": "^7.0.25",
     "@graphql-tools/schema": "^10.0.30",
+    "@graphql-tools/utils": "^10.11.0",
     "graphql-parse-resolve-info": "^4.13.0",
     "graphql-scalars": "^1.25.0",
     "ulid": "^3.0.2"
