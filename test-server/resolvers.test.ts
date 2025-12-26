@@ -438,21 +438,18 @@ describe("Resolver Tests", () => {
       const data = await executeQuery(
         `
         mutation($where: UserFilters!) {
-        userDeleteMany(where: $where) {
-          id
-          name
-            id
-            name
-            email
+          userDeleteMany(where: $where) {
+            deletedItems {
+              id
+            }
           }
         }
       `,
         { where: { id: { eq: deleteUserId } } }
       );
 
-      expect(data?.userDeleteMany as any[]).toHaveLength(1);
-      expect((data?.userDeleteMany as any[])[0].id).toBe(deleteUserId);
-      expect((data?.userDeleteMany as any[])[0].name).toBe("To Delete");
+      expect(data?.userDeleteMany?.deletedItems as any[]).toHaveLength(1);
+      expect((data?.userDeleteMany?.deletedItems as any[])[0].id).toBe(deleteUserId);
 
       // Verify deletion
       const checkData = await executeQuery(
@@ -500,24 +497,20 @@ describe("Resolver Tests", () => {
         `
         mutation($where: PostFilters!) {
           postDeleteMany(where: $where) {
-            id
-            title
-            id
-            title
-            content
+            deletedItems {
+              id
+            }
           }
         }
       `,
         { where: { authorId: { eq: deleteUserId } } }
       );
 
-      expect(data?.postDeleteMany as any[]).toHaveLength(2);
-      const deletedPosts = data?.postDeleteMany as any[];
+      expect(data?.postDeleteMany?.deletedItems as any[]).toHaveLength(2);
+      const deletedPosts = data?.postDeleteMany?.deletedItems as any[];
       const deletedIds = deletedPosts.map((p: any) => p.id);
       expect(deletedIds).toContain(deletePostId1);
       expect(deletedIds).toContain(deletePostId2);
-      expect(deletedPosts[0]).toHaveProperty("title");
-      expect(deletedPosts[0]).toHaveProperty("content");
 
       // Verify deletion
       const checkData = await executeQuery(

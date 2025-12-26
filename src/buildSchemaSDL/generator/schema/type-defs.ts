@@ -346,6 +346,12 @@ export const generateTypeDefs = (
         }
 
         typeDefs.push(`input ${typeName}OrderBy {\n${orderByFields.join("\n")}\n}`);
+
+        // Generate DeleteResult type with deletedItems and query resolver
+        typeDefs.push(`type ${typeName}DeleteResult {
+  deletedItems: [DeletedItem!]!
+  ${tableName}FindMany(where: ${typeName}Filters, orderBy: ${typeName}OrderBy, limit: Int, offset: Int): [${typeName}!]!
+}`);
     }
 
     // Build final SDL with all definitions
@@ -370,6 +376,11 @@ export const generateTypeDefs = (
     allDefs.push(`enum OrderByDirection {
   asc
   desc
+}`);
+
+    // Add shared DeletedItem type (used by all delete mutations)
+    allDefs.push(`type DeletedItem {
+  id: ID!
 }`);
 
     // Add InnerOrder input (shared by all tables)
@@ -453,9 +464,9 @@ export const generateMutationTypeDefs = (
             `  ${tableName}UpdateMany(where: ${typeName}Filters, set: ${typeName}UpdateInput!): [${typeName}!]!`
         );
 
-        // delete mutation
+        // delete mutation - returns DeleteResult type
         mutationFields.push(
-            `  ${tableName}DeleteMany(where: ${typeName}Filters): [${typeName}!]!`
+            `  ${tableName}DeleteMany(where: ${typeName}Filters): ${typeName}DeleteResult!`
         );
     }
 
