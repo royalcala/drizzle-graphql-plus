@@ -39,8 +39,9 @@ export class ExportStore {
    * Wait for a value to be available
    * Returns immediately if value already exists
    * Returns a Promise that resolves when value is set
+   * If timeout occurs and allowNull is true, resolves with null instead of rejecting
    */
-  async waitFor(name: string, timeout = 5000): Promise<any> {
+  async waitFor(name: string, timeout = 5000, allowNull = false): Promise<any> {
     // If value already exists, return it immediately
     if (this.store.has(name)) {
       return this.store.get(name);
@@ -61,7 +62,12 @@ export class ExportStore {
           const index = callbacks.indexOf(resolve);
           if (index > -1) {
             callbacks.splice(index, 1);
-            reject(new Error(`Timeout waiting for export variable "${name}"`));
+            if (allowNull) {
+              // Resolve with null instead of rejecting
+              resolve(null);
+            } else {
+              reject(new Error(`Timeout waiting for export variable "${name}"`));
+            }
           }
         }
       }, timeout);

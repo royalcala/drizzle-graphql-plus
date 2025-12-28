@@ -5,6 +5,8 @@ directive @export(as: String!) on FIELD
     DISLIKE
   }
 
+scalar Date
+
 enum OrderByDirection {
   asc
   desc
@@ -55,6 +57,24 @@ input StringFieldFilter {
   OR: [StringFieldFilter!]
 }
 
+input DateFieldFilter {
+  eq: Date
+  ne: Date
+  lt: Date
+  lte: Date
+  gt: Date
+  gte: Date
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [Date!]
+  notInArray: [Date!]
+  isNull: Boolean
+  isNotNull: Boolean
+  OR: [DateFieldFilter!]
+}
+
 input ReactionTypeFieldFilter {
   eq: ReactionType
   ne: ReactionType
@@ -71,6 +91,43 @@ input ReactionTypeFieldFilter {
   isNull: Boolean
   isNotNull: Boolean
   OR: [ReactionTypeFieldFilter!]
+}
+
+type City {
+  id: ID!
+  name: String!
+  slug: String!
+  posts(where: PostFilters, orderBy: PostOrderBy, limit: Int, offset: Int): [Post!]!
+}
+
+input CityInsertInput {
+  id: ID
+  name: String
+  slug: String
+}
+
+input CityUpdateInput {
+  id: ID
+  name: String
+  slug: String
+}
+
+input CityFilters {
+  id: IDFieldFilter
+  name: StringFieldFilter
+  slug: StringFieldFilter
+  OR: [CityFilters!]
+}
+
+input CityOrderBy {
+  id: InnerOrder
+  name: InnerOrder
+  slug: InnerOrder
+}
+
+type CityDeleteResult {
+  deletedItems: [DeletedItem!]!
+  cityFindMany(where: CityFilters, orderBy: CityOrderBy, limit: Int, offset: Int): [City!]!
 }
 
 type Comment {
@@ -122,8 +179,13 @@ type Post {
   content: String!
   authorId: ID!
   name: String
+  cityId: ID
+  sportId: ID
+  createdAt: Date!
   author(where: UserFilters): User
   comments(where: CommentFilters, orderBy: CommentOrderBy, limit: Int, offset: Int): [Comment!]!
+  city(where: CityFilters): City
+  sport(where: SportFilters): Sport
 }
 
 input PostInsertInput {
@@ -132,6 +194,9 @@ input PostInsertInput {
   content: String
   authorId: ID
   name: String
+  cityId: ID
+  sportId: ID
+  createdAt: Date
 }
 
 input PostUpdateInput {
@@ -140,6 +205,9 @@ input PostUpdateInput {
   content: String
   authorId: ID
   name: String
+  cityId: ID
+  sportId: ID
+  createdAt: Date
 }
 
 input PostFilters {
@@ -148,6 +216,9 @@ input PostFilters {
   content: StringFieldFilter
   authorId: IDFieldFilter
   name: StringFieldFilter
+  cityId: IDFieldFilter
+  sportId: IDFieldFilter
+  createdAt: DateFieldFilter
   OR: [PostFilters!]
 }
 
@@ -157,6 +228,9 @@ input PostOrderBy {
   content: InnerOrder
   authorId: InnerOrder
   name: InnerOrder
+  cityId: InnerOrder
+  sportId: InnerOrder
+  createdAt: InnerOrder
 }
 
 type PostDeleteResult {
@@ -204,6 +278,38 @@ input ReactionOrderBy {
 type ReactionDeleteResult {
   deletedItems: [DeletedItem!]!
   reactionFindMany(where: ReactionFilters, orderBy: ReactionOrderBy, limit: Int, offset: Int): [Reaction!]!
+}
+
+type Sport {
+  id: ID!
+  name: String!
+  posts(where: PostFilters, orderBy: PostOrderBy, limit: Int, offset: Int): [Post!]!
+}
+
+input SportInsertInput {
+  id: ID
+  name: String
+}
+
+input SportUpdateInput {
+  id: ID
+  name: String
+}
+
+input SportFilters {
+  id: IDFieldFilter
+  name: StringFieldFilter
+  OR: [SportFilters!]
+}
+
+input SportOrderBy {
+  id: InnerOrder
+  name: InnerOrder
+}
+
+type SportDeleteResult {
+  deletedItems: [DeletedItem!]!
+  sportFindMany(where: SportFilters, orderBy: SportOrderBy, limit: Int, offset: Int): [Sport!]!
 }
 
 type User {
@@ -298,12 +404,16 @@ type UserProfileDeleteResult {
 }
 
 type Query {
+  cityFindMany(where: CityFilters, orderBy: CityOrderBy, limit: Int, offset: Int): [City!]!
+  cityFindFirst(where: CityFilters, orderBy: CityOrderBy): City
   commentFindMany(where: CommentFilters, orderBy: CommentOrderBy, limit: Int, offset: Int): [Comment!]!
   commentFindFirst(where: CommentFilters, orderBy: CommentOrderBy): Comment
   postFindMany(where: PostFilters, orderBy: PostOrderBy, limit: Int, offset: Int): [Post!]!
   postFindFirst(where: PostFilters, orderBy: PostOrderBy): Post
   reactionFindMany(where: ReactionFilters, orderBy: ReactionOrderBy, limit: Int, offset: Int): [Reaction!]!
   reactionFindFirst(where: ReactionFilters, orderBy: ReactionOrderBy): Reaction
+  sportFindMany(where: SportFilters, orderBy: SportOrderBy, limit: Int, offset: Int): [Sport!]!
+  sportFindFirst(where: SportFilters, orderBy: SportOrderBy): Sport
   userFindMany(where: UserFilters, orderBy: UserOrderBy, limit: Int, offset: Int): [User!]!
   userFindFirst(where: UserFilters, orderBy: UserOrderBy): User
   userProfileFindMany(where: UserProfileFilters, orderBy: UserProfileOrderBy, limit: Int, offset: Int): [UserProfile!]!
@@ -311,6 +421,9 @@ type Query {
 }
 
 type Mutation {
+  cityInsertMany(values: [CityInsertInput!]!): [City!]!
+  cityUpdateMany(where: CityFilters, set: CityUpdateInput!): [City!]!
+  cityDeleteMany(where: CityFilters): CityDeleteResult!
   commentInsertMany(values: [CommentInsertInput!]!): [Comment!]!
   commentUpdateMany(where: CommentFilters, set: CommentUpdateInput!): [Comment!]!
   commentDeleteMany(where: CommentFilters): CommentDeleteResult!
@@ -320,6 +433,9 @@ type Mutation {
   reactionInsertMany(values: [ReactionInsertInput!]!): [Reaction!]!
   reactionUpdateMany(where: ReactionFilters, set: ReactionUpdateInput!): [Reaction!]!
   reactionDeleteMany(where: ReactionFilters): ReactionDeleteResult!
+  sportInsertMany(values: [SportInsertInput!]!): [Sport!]!
+  sportUpdateMany(where: SportFilters, set: SportUpdateInput!): [Sport!]!
+  sportDeleteMany(where: SportFilters): SportDeleteResult!
   userInsertMany(values: [UserInsertInput!]!): [User!]!
   userUpdateMany(where: UserFilters, set: UserUpdateInput!): [User!]!
   userDeleteMany(where: UserFilters): UserDeleteResult!

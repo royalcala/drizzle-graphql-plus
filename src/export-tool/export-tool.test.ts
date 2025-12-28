@@ -254,9 +254,14 @@ describe("Utils", () => {
       });
     });
 
-    it("should throw error for non-existent variables", async () => {
+    it("should resolve with null for non-existent variables when allowNull is true", async () => {
+      const result = await resolveExportVariables({ id: "$_nonExistent" }, store, 100, true);
+      expect(result).toEqual({ id: null });
+    });
+
+    it("should throw error for non-existent variables when allowNull is false", async () => {
       await expect(
-        resolveExportVariables({ id: "$_nonExistent" }, store, 100)
+        resolveExportVariables({ id: "$_nonExistent" }, store, 100, false)
       ).rejects.toThrow('Timeout waiting for export variable "nonExistent"');
     });
 
@@ -488,16 +493,23 @@ describe("Middleware", () => {
       ).rejects.toThrow("Resolver error");
     });
 
-    it("should throw error when export variable cannot be resolved", async () => {
+    it("should resolve with null when export variable cannot be resolved (new behavior)", async () => {
       const middleware = createExportMiddleware();
       const wrappedResolver = middleware(mockResolver);
 
       const args = { userId: "$_nonExistent" };
       const context = { exportStore: store };
 
-      await expect(
-        wrappedResolver(null, args, context, mockInfo)
-      ).rejects.toThrow("Failed to resolve export variables");
+      // With the new allowNull behavior, this should resolve with null instead of throwing
+      const result = await wrappedResolver(null, args, context, mockInfo);
+      
+      expect(mockResolver).toHaveBeenCalledWith(
+        null,
+        { userId: null }, // The non-existent export resolves to null
+        context,
+        mockInfo
+      );
+      expect(result).toEqual({ id: "12345", name: "John" });
     });
   });
 });

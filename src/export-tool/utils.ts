@@ -27,12 +27,13 @@ export function getVariableName(value: string): string | null {
 export async function resolveExportVariables(
   args: any,
   exportStore: ExportStore,
-  timeout?: number
+  timeout?: number,
+  allowNull = true // Allow null values by default to handle cases where exports don't happen
 ): Promise<any> {
   // Handle primitive export variables
   if (isExportVariable(args)) {
     const varName = getVariableName(args)!;
-    return await exportStore.waitFor(varName, timeout);
+    return await exportStore.waitFor(varName, timeout, allowNull);
   }
 
   // Handle arrays
@@ -41,9 +42,9 @@ export async function resolveExportVariables(
       args.map(async (item) => {
         if (isExportVariable(item)) {
           const varName = getVariableName(item)!;
-          return await exportStore.waitFor(varName, timeout);
+          return await exportStore.waitFor(varName, timeout, allowNull);
         } else if (typeof item === "object" && item !== null) {
-          return await resolveExportVariables(item, exportStore, timeout);
+          return await resolveExportVariables(item, exportStore, timeout, allowNull);
         }
         return item;
       })
@@ -58,18 +59,20 @@ export async function resolveExportVariables(
     for (const [key, value] of Object.entries(args)) {
       if (isExportVariable(value)) {
         const varName = getVariableName(value)!;
-        resolved[key] = await exportStore.waitFor(varName, timeout);
+        resolved[key] = await exportStore.waitFor(varName, timeout, allowNull);
       } else if (Array.isArray(value)) {
         resolved[key] = await resolveExportVariables(
           value,
           exportStore,
-          timeout
+          timeout,
+          allowNull
         );
       } else if (typeof value === "object" && value !== null) {
         resolved[key] = await resolveExportVariables(
           value,
           exportStore,
-          timeout
+          timeout,
+          allowNull
         );
       } else {
         resolved[key] = value;

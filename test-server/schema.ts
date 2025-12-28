@@ -23,6 +23,11 @@ export const post = sqliteTable("post", {
     .notNull()
     .references(() => user.id),
   name: text("name"),
+  cityId: text("city_id").references(() => city.id),
+  sportId: text("sport_id").references(() => sport.id),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .$defaultFn(() => new Date())
+    .notNull(),
 });
 
 export const comment = sqliteTable("comment", {
@@ -67,6 +72,25 @@ export const userProfile = sqliteTable("user_profile", {
   website: text("website"),
 });
 
+// City table for the sport/city example
+export const city = sqliteTable("city", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => generateUlid())
+    .notNull(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+});
+
+// Sport table
+export const sport = sqliteTable("sport", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => generateUlid())
+    .notNull(),
+  name: text("name").notNull(),
+});
+
 setCustomGraphQL(reaction, {
   type: {
     type: "ReactionType",
@@ -89,6 +113,14 @@ export const postRelations = relations(post, ({ one, many }) => ({
     references: [user.id],
   }),
   comments: many(comment),
+  city: one(city, {
+    fields: [post.cityId],
+    references: [city.id],
+  }),
+  sport: one(sport, {
+    fields: [post.sportId],
+    references: [sport.id],
+  }),
 }));
 
 export const commentRelations = relations(comment, ({ one }) => ({
@@ -107,4 +139,12 @@ export const userProfileRelations = relations(userProfile, ({ one }) => ({
     fields: [userProfile.userId],
     references: [user.id],
   }),
+}));
+
+export const cityRelations = relations(city, ({ many }) => ({
+  posts: many(post),
+}));
+
+export const sportRelations = relations(sport, ({ many }) => ({
+  posts: many(post),
 }));

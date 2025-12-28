@@ -7,6 +7,8 @@ import {
 import type { ResolveTree } from "graphql-parse-resolve-info";
 import type { TableInfo, TableNamedRelations } from "../types";
 import { buildWhereClause, type WhereInput } from "./filters";
+import { resolveExportVariables, hasExportVariables } from "../../../export-tool/utils";
+import type { ExportStore } from "../../../export-tool/ExportStore";
 
 export type OrderByField = {
     direction: "asc" | "desc";
@@ -59,12 +61,13 @@ export const extractSelectedColumns = (
 };
 
 // Extract relations params recursively
-export const extractRelationsParams = (
+export const extractRelationsParams = async (
     relationMap: Record<string, Record<string, TableNamedRelations>>,
     tables: Record<string, TableInfo>,
     tableName: string,
-    fields: Record<string, ResolveTree>
-): Record<string, any> | undefined => {
+    fields: Record<string, ResolveTree>,
+    context?: any
+): Promise<Record<string, any> | undefined> => {
     const relations = relationMap[tableName];
     if (!relations) return undefined;
 
@@ -95,10 +98,20 @@ export const extractRelationsParams = (
         const relationArgs = relationField.args as any;
         if (relationArgs) {
             if (relationArgs["where"]) {
-                thisRecord.where = buildWhereClause(
-                    targetTable,
-                    relationArgs["where"] as WhereInput
-                );
+                let whereClause = relationArgs["where"] as WhereInput;
+
+                // Resolve export variables in nested relation where clauses
+                if (context?.exportStore && hasExportVariables(whereClause)) {
+                    try {
+                        // Use async resolution to wait for export variables to become available
+                        whereClause = await resolveExportVariables(whereClause, context.exportStore);
+                    } catch (error) {
+                        // If resolution fails, log warning but continue with original clause
+                        console.warn(`Failed to resolve export variables in nested relation ${relName}:`, error);
+                    }
+                }
+
+                thisRecord.where = buildWhereClause(targetTable, whereClause);
             }
             if (relationArgs["orderBy"]) {
                 thisRecord.orderBy = buildOrderByClause(
@@ -115,11 +128,12 @@ export const extractRelationsParams = (
         }
 
         // Recursively extract nested relations
-        const nestedWith = extractRelationsParams(
+        const nestedWith = await extractRelationsParams(
             relationMap,
             tables,
             targetTableName,
-            allFields
+            allFields,
+            context
         );
         if (nestedWith) {
             thisRecord.with = nestedWith;
@@ -130,3 +144,33 @@ export const extractRelationsParams = (
 
     return Object.keys(args).length > 0 ? args : undefined;
 };
+
+// Synchronous version of resolveExportVariables for cases where exports should already be available
+function resolveExportVariablesSync(args: any, exportStore: ExportStore): any {
+    // Handle primitive export variables
+    if (typeof args === "string" && args.startsWith("$_") && args.length > 2) {
+        const varName = args.slice(2);
+        const value = exportStore.get(varName);
+        if (value === undefined) {
+            throw new Error(`Export variable ${varName} not found`);
+        }
+        return value;
+    }
+
+    // Handle arrays
+    if (Array.isArray(args)) {
+        return args.map(item => resolveExportVariablesSync(item, exportStore));
+    }
+
+    // Handle objects
+    if (typeof args === "object" && args !== null) {
+        const resolved: Record<string, any> = {};
+        for (const [key, value] of Object.entries(args)) {
+            resolved[key] = resolveExportVariablesSync(value, exportStore);
+        }
+        return resolved;
+    }
+
+    // Return primitive values as-is
+    return args;
+}

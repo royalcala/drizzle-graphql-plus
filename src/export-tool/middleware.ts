@@ -60,7 +60,14 @@ export function createExportMiddleware(): ResolverMiddleware {
         try {
           resolvedArgs = await resolveExportVariables(args, exportStore);
         } catch (error) {
-          // If timeout or error waiting for export, throw meaningful error
+          // If timeout or error waiting for export, check if we can provide a default
+          if (error instanceof Error && error.message.includes("Timeout waiting for export variable")) {
+            // For now, throw the original error, but this could be enhanced to provide defaults
+            throw new Error(
+              `Failed to resolve export variables in ${info.parentType.name}.${info.fieldName
+              }: ${error.message}. Consider using a fallback value or checking if the exported field can return null.`
+            );
+          }
           throw new Error(
             `Failed to resolve export variables in ${info.parentType.name}.${info.fieldName
             }: ${error instanceof Error ? error.message : String(error)}`
@@ -77,7 +84,7 @@ export function createExportMiddleware(): ResolverMiddleware {
 
       // 3.1 Check export on the field itself (scalar or object)
       const selfExportName = getExportDirective(fieldNode);
-      if (selfExportName && result !== undefined && result !== null) {
+      if (selfExportName && result !== undefined) {
         exportStore.set(selfExportName, result);
       }
 

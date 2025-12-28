@@ -53,11 +53,12 @@ export const createFindManyResolver = (
                 limit,
                 orderBy: buildOrderByClause(tableInfo, orderBy),
                 where: buildWhereClause(tableInfo, where),
-                with: extractRelationsParams(
+                with: await extractRelationsParams(
                     relations,
                     tables,
                     tableInfo.name,
-                    allFields
+                    allFields,
+                    context
                 ),
             });
 
@@ -107,11 +108,12 @@ export const createFindFirstResolver = (
                 columns: extractSelectedColumns(allFields, tableInfo),
                 orderBy: buildOrderByClause(tableInfo, orderBy),
                 where: buildWhereClause(tableInfo, where),
-                with: extractRelationsParams(
+                with: await extractRelationsParams(
                     relations,
                     tables,
                     tableInfo.name,
-                    allFields
+                    allFields,
+                    context
                 ),
             });
 
