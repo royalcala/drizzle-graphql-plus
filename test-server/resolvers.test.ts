@@ -584,6 +584,79 @@ describe("Resolver Tests", () => {
       // Cleanup
       await db.delete(user).where(eq(user.id, user3Id));
     });
+
+    it("should delete comments by postId and return deleted items", async () => {
+      // Create a test post and comments
+      const testPostId = generateUlid();
+      const testUserId = generateUlid();
+      const comment1Id = generateUlid();
+      const comment2Id = generateUlid();
+
+      await db.insert(user).values({
+        id: testUserId,
+        name: "Delete Test User",
+        email: "deletetest@example.com",
+      });
+
+      await db.insert(post).values({
+        id: testPostId,
+        title: "Post with Comments to Delete",
+        content: "This post will have its comments deleted",
+        authorId: testUserId,
+      });
+
+      await db.insert(comment).values([
+        {
+          id: comment1Id,
+          text: "Comment 1 to delete",
+          postId: testPostId,
+          userId: testUserId,
+        },
+        {
+          id: comment2Id,
+          text: "Comment 2 to delete",
+          postId: testPostId,
+          userId: testUserId,
+        },
+      ]);
+
+      // Delete comments by postId
+      const data = await executeQuery(
+        `
+        mutation($where: CommentFilters!) {
+          commentDeleteMany(where: $where) {
+            deletedItems {
+              id
+            }
+          }
+        }
+        `,
+        { where: { postId: { eq: testPostId } } }
+      );
+
+      expect(data?.commentDeleteMany?.deletedItems as any[]).toHaveLength(2);
+      const deletedComments = data?.commentDeleteMany?.deletedItems as any[];
+      const deletedIds = deletedComments.map((c: any) => c.id);
+      expect(deletedIds).toContain(comment1Id);
+      expect(deletedIds).toContain(comment2Id);
+
+      // Verify deletion by querying remaining comments
+      const checkData = await executeQuery(
+        `
+        query($postId: ID!) {
+          commentFindMany(where: { postId: { eq: $postId } }) {
+            id
+          }
+        }
+        `,
+        { postId: testPostId }
+      );
+      expect(checkData?.commentFindMany as any[]).toHaveLength(0);
+
+      // Cleanup
+      await db.delete(post).where(eq(post.id, testPostId));
+      await db.delete(user).where(eq(user.id, testUserId));
+    });
   });
 
   describe("Type Safety Tests", () => {
@@ -781,7 +854,7 @@ describe("Resolver Tests", () => {
         },
         {
           id: postId2,
-          title: "Sport Post 2", 
+          title: "Sport Post 2",
           content: "Content 2",
           authorId: cityId, // Using cityId as authorId for this test
         },
@@ -818,7 +891,7 @@ describe("Resolver Tests", () => {
       expect(data?.cityFindFirst?.id).toBe(cityId);
       expect(data?.sportWithPosts).toBeDefined();
       expect(data?.sportWithPosts?.id).toBe(sportId);
-      
+
       // Now the posts should be found since we're using the exported cityId
       expect(data?.posts).toBeDefined();
       expect(Array.isArray(data?.posts)).toBe(true);
@@ -854,7 +927,7 @@ describe("Resolver Tests", () => {
         {
           id: postId2,
           title: "User Post 2",
-          content: "Content 2", 
+          content: "Content 2",
           authorId: userId,
         },
       ]);
@@ -920,7 +993,7 @@ describe("Resolver Tests", () => {
       // Insert posts with city and sport references - some in the target city, some in other cities
       const otherCityId = generateUlid();
       const otherUniqueSlug = `other-city-${generateUlid().slice(-8)}`;
-      
+
       // Insert another city for the third post
       await db.insert(city).values({
         id: otherCityId,
@@ -939,7 +1012,7 @@ describe("Resolver Tests", () => {
         },
         {
           id: postId2,
-          title: "Football Game 2 in Test City", 
+          title: "Football Game 2 in Test City",
           content: "Another game in Test City",
           authorId: testData.userId,
           sportId: sportId,
@@ -1038,20 +1111,20 @@ describe("Resolver Tests", () => {
       expect(data?.sportWithPosts).toBeDefined();
       expect(data?.sportWithPosts?.id).toBe(sportId);
       expect(data?.sportWithPosts?.name).toBe(uniqueSportName);
-      
+
       // The key test: posts should be filtered by the exported cityId
       expect(data?.sportWithPosts?.posts).toBeDefined();
       expect(Array.isArray(data?.sportWithPosts?.posts)).toBe(true);
-      
+
       // � NOW LXET'S ACTUALLY TEST THAT POSTS ARE RETURNED
       console.log("Testing if posts are returned correctly...");
-      
+
       // First verify the simple query works
       expect(simpleData?.posts).toBeDefined();
       expect(Array.isArray(simpleData?.posts)).toBe(true);
       expect(simpleData?.posts?.length).toBe(2);
       console.log(`✅ Simple query returned ${simpleData?.posts?.length} posts`);
-      
+
       // Now test the export directive query
       if (data?.sportWithPosts?.posts?.length === 0) {
         console.log("❌ Nested posts query returned empty array - investigating...");
@@ -1059,21 +1132,21 @@ describe("Resolver Tests", () => {
         console.log("Expected sport ID:", sportId);
         console.log("City ID from export:", data?.cityFindFirst?.id);
         console.log("Expected city ID:", cityId);
-        
+
         // The issue might be that the nested relation query doesn't work the same way
         // Let's test if this is a limitation of nested relations with additional filters
         console.log("This might be a limitation of how nested relations work with additional where clauses");
       } else {
         console.log(`✅ Nested query returned ${data?.sportWithPosts?.posts?.length} posts`);
         expect(data?.sportWithPosts?.posts?.length).toBe(2);
-        
+
         // Verify all returned posts are from the correct city
         data?.sportWithPosts?.posts?.forEach((post: any) => {
           expect(post.cityId).toBe(cityId);
           expect(post.title).toContain("Test City");
         });
       }
-      
+
       // The export directive itself is working perfectly!
       expect(data?.cityFindFirst?.id).toBe(cityId);
       expect(data?.sportWithPosts?.id).toBe(sportId);
@@ -1287,6 +1360,14 @@ describe("Resolver Tests", () => {
                 id
                 name
               }
+              comments {
+                id
+                text
+                user {
+                  id
+                  name
+                }
+              }
             }
             user {
               id
@@ -1332,10 +1413,33 @@ describe("Resolver Tests", () => {
       expect(firstComment.user).toBeDefined();
       expect(firstComment.user.id).toBe(testData.userId);
 
+      // NEW: Test post.comments relation
+      expect(firstComment.post.comments).toBeDefined();
+      expect(Array.isArray(firstComment.post.comments)).toBe(true);
+      expect(firstComment.post.comments.length).toBeGreaterThanOrEqual(3); // 1 original + 2 newly inserted
+
+      // Verify the post contains all comments (original + newly inserted)
+      const postComments = firstComment.post.comments as any[];
+      const commentTexts = postComments.map((c: any) => c.text);
+      expect(commentTexts).toContain("Test comment"); // Original comment
+      expect(commentTexts).toContain("First deep comment"); // Newly inserted
+      expect(commentTexts).toContain("Second deep comment"); // Newly inserted
+
+      // Verify each comment has user relation
+      postComments.forEach((comment: any) => {
+        expect(comment.user).toBeDefined();
+        expect(comment.user.id).toBe(testData.userId);
+        expect(comment.user.name).toBe("Test User");
+      });
+
       expect(secondComment).toBeDefined();
       expect(secondComment.text).toBe("Second deep comment");
       expect(secondComment.post).toBeDefined();
       expect(secondComment.user).toBeDefined();
+
+      // NEW: Verify second comment also has the same post.comments data
+      expect(secondComment.post.comments).toBeDefined();
+      expect(secondComment.post.comments.length).toBe(firstComment.post.comments.length);
 
       // Cleanup
       await db.delete(comment).where(eq(comment.id, firstComment.id));
@@ -2038,7 +2142,7 @@ describe("Resolver Tests", () => {
         },
         {
           id: postId2,
-          title: "Football Game 2", 
+          title: "Football Game 2",
           content: "Another football game",
           authorId: testData.userId,
           sportId: sportId,
@@ -2085,12 +2189,12 @@ describe("Resolver Tests", () => {
       expect(data?.sportWithPosts).toBeDefined();
       expect(data?.sportWithPosts?.id).toBe(sportId);
       expect(data?.sportWithPosts?.name).toBe(uniqueSportName);
-      
+
       // CRITICAL TEST: Verify posts array contains actual posts, not empty array
       expect(data?.sportWithPosts?.posts).toBeDefined();
       expect(Array.isArray(data?.sportWithPosts?.posts)).toBe(true);
       expect(data?.sportWithPosts?.posts?.length).toBe(2); // Should contain 2 posts
-      
+
       // Verify each post has the correct data
       const posts = data?.sportWithPosts?.posts as any[];
       expect(posts[0]).toHaveProperty('id');
@@ -2098,7 +2202,7 @@ describe("Resolver Tests", () => {
       expect(posts[0]).toHaveProperty('content');
       expect(posts[0].cityId).toBe(cityId);
       expect(posts[0].sportId).toBe(sportId);
-      
+
       expect(posts[1]).toHaveProperty('id');
       expect(posts[1]).toHaveProperty('title');
       expect(posts[1]).toHaveProperty('content');

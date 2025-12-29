@@ -46,11 +46,13 @@ export const createInsertManyResolver = (
                 tableInfo.table
             );
 
-            // Insert and return the inserted rows
+            // Insert and return only the primary key
             const insertedRows = await db
                 .insert(tableInfo.table)
                 .values(remappedValues)
-                .returning();
+                .returning({
+                    [primaryKeyColumn.name]: primaryKeyColumn
+                });
 
             // Extract IDs from inserted rows
             const insertedIds = insertedRows.map(
@@ -118,8 +120,10 @@ export const createUpdateManyResolver = (
                 query = query.where(whereClause) as any;
             }
 
-            // Execute update with RETURNING
-            const updatedRows = await (query as any).returning();
+            // Execute update with RETURNING only the primary key
+            const updatedRows = await (query as any).returning({
+                [primaryKeyColumn.name]: primaryKeyColumn
+            });
 
             // Extract IDs from updated rows
             const updatedIds = updatedRows.map(
@@ -180,8 +184,10 @@ export const createDeleteManyResolver = (
                 deleteQuery = deleteQuery.where(whereClause) as any;
             }
 
-            // Execute delete with RETURNING
-            const deletedRows = await (deleteQuery as any).returning();
+            // Execute delete with RETURNING only the primary key
+            const deletedRows = await (deleteQuery as any).returning({
+                [primaryKeyColumn.name]: primaryKeyColumn
+            });
 
             // Extract IDs from deleted rows
             const deletedItems = deletedRows.map((row: any) => ({

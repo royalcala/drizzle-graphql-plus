@@ -296,12 +296,28 @@ export const generateTypeDefs = (
         false,
         isPrimaryKey
       );
-      // Make nullable for insert (remove ! if present)
-      // Columns with defaults or auto-increment are optional
-      const nullableType = typeStr.endsWith("!")
-        ? typeStr.slice(0, -1)
-        : typeStr;
-      insertFields.push(`  ${columnName}: ${nullableType}`);
+      
+      // Determine if field should be optional in InsertInput
+      const hasDefault = (column as any).hasDefault || (column as any).default !== undefined;
+      const isAutoIncrement = (column as any).autoIncrement || (column as any).generatedAlwaysAs;
+      const isNotNull = (column as any).notNull;
+      
+      // Field is optional in InsertInput if:
+      // 1. It has a default value
+      // 2. It's auto-increment/generated
+      // 3. It's a primary key with auto-generation
+      const shouldBeOptional = hasDefault || isAutoIncrement || (isPrimaryKey && !isNotNull);
+      
+      let insertFieldType: string;
+      if (shouldBeOptional) {
+        // Make field optional by removing ! if present
+        insertFieldType = typeStr.endsWith("!") ? typeStr.slice(0, -1) : typeStr;
+      } else {
+        // Keep field as required (preserve ! if column is notNull)
+        insertFieldType = isNotNull && !typeStr.endsWith("!") ? `${typeStr}!` : typeStr;
+      }
+
+      insertFields.push(`  ${columnName}: ${insertFieldType}`);
     }
 
     if (insertFields.length > 0) {

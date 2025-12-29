@@ -102,8 +102,8 @@ type City {
 
 input CityInsertInput {
   id: ID
-  name: String
-  slug: String
+  name: String!
+  slug: String!
 }
 
 input CityUpdateInput {
@@ -141,9 +141,9 @@ type Comment {
 
 input CommentInsertInput {
   id: ID
-  text: String
-  postId: ID
-  userId: ID
+  text: String!
+  postId: ID!
+  userId: ID!
 }
 
 input CommentUpdateInput {
@@ -190,9 +190,9 @@ type Post {
 
 input PostInsertInput {
   id: ID
-  title: String
-  content: String
-  authorId: ID
+  title: String!
+  content: String!
+  authorId: ID!
   name: String
   cityId: ID
   sportId: ID
@@ -248,9 +248,9 @@ type Reaction {
 
 input ReactionInsertInput {
   id: ID
-  commentId: String
-  userId: String
-  type: ReactionType
+  commentId: String!
+  userId: String!
+  type: ReactionType!
 }
 
 input ReactionUpdateInput {
@@ -288,7 +288,7 @@ type Sport {
 
 input SportInsertInput {
   id: ID
-  name: String
+  name: String!
 }
 
 input SportUpdateInput {
@@ -324,8 +324,8 @@ type User {
 
 input UserInsertInput {
   id: ID
-  name: String
-  email: String
+  name: String!
+  email: String!
   bio: String
 }
 
@@ -367,7 +367,7 @@ type UserProfile {
 
 input UserProfileInsertInput {
   id: ID
-  userId: ID
+  userId: ID!
   bio: String
   avatarUrl: String
   website: String
