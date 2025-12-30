@@ -1,47 +1,39 @@
-import { createYoga } from 'graphql-yoga';
-import { buildSchemaSDL } from '../src/build-schema-sdl-with-dl';
-import { createDataLoaderContext, cleanupDataLoaderContext } from '../src/build-schema-sdl-with-dl/generator/utils/context';
+import { createYoga, useEnvelop } from 'graphql-yoga';
+import { envelop, useEngine, useSchema } from '@envelop/core';
+import { execute, subscribe } from 'graphql';
+import { makeExecutableSchema } from '@graphql-tools/schema';
+import { buildSchemaSDLWithDataLoader, useDataLoaderCleanup } from 'drizzle-graphql-plus';
 
-// Example usage with GraphQL Yoga
+// Example usage with GraphQL Yoga and Envelop
 export function createServerWithDataLoader(db: any) {
-  // Build your schema with DataLoader enabled (default in this version)
-  const { typeDefs, resolvers } = buildSchemaSDL(db, {
-    relationsDepthLimit: 5,
-    // DataLoader is enabled by default, but you can explicitly set it
-    useDataLoader: true
+  // Build your schema with DataLoader enabled (always enabled in this version)
+  const { typeDefs, resolvers } = buildSchemaSDLWithDataLoader(db);
+  
+  // Create executable schema
+  const schema = makeExecutableSchema({ typeDefs, resolvers });
+
+  // Create Envelop instance with comprehensive DataLoader plugin
+  const getEnveloped = envelop({
+    plugins: [
+      useEngine({ execute, subscribe }),
+      useSchema(schema),
+      useDataLoaderCleanup({ db }), // Handles context creation, db injection, AND cleanup automatically
+    ],
   });
 
   const yoga = createYoga({
-    typeDefs,
-    resolvers,
+    plugins: [useEnvelop(getEnveloped)],
     context: async ({ request }) => {
-      // Create DataLoader context for each request
-      const dataLoaderContext = createDataLoaderContext();
-      
+      // DataLoader context AND database are automatically injected by the plugin!
+      // Just add your other context properties
       return {
-        // Your existing context
         request,
-        // Add DataLoader context
-        ...dataLoaderContext,
-        
-        // Cleanup function (optional, for manual cleanup)
-        cleanup: () => cleanupDataLoaderContext(dataLoaderContext)
+        // db and relationLoaders are added automatically by the plugin
       };
     },
-    plugins: [
-      // Plugin to automatically cleanup DataLoaders after each request
-      {
-        onRequestResult: ({ result }) => {
-          // Cleanup DataLoaders after request completion
-          if (result.context?.cleanup) {
-            result.context.cleanup();
-          }
-        }
-      }
-    ]
   });
 
-    return yoga;
+  return yoga;
 }
 
 // Example query that benefits from DataLoader:

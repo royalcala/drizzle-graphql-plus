@@ -191,3 +191,4 @@ export const buildSchemaSDL = <
 // Re-export DataLoader utilities
 export * from './generator/utils/dataloader';
 export * from './generator/utils/context';
+export * from './generator/utils/envelop-plugin';

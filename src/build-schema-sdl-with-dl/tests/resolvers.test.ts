@@ -485,81 +485,747 @@ describe("DataLoader Resolver Tests", () => {
   });
 
   describe("DataLoader Mutation Resolvers", () => {
-    it("should insert a new user and use DataLoader for result fetching", async () => {
-      const data = await executeQuery(
-        `
-        mutation($values: [UserInsertInput!]!) {
-          userInsertMany(values: $values) {
-            id
-            name
-            email
-            posts {
+    describe("Insert Operations", () => {
+      it("should insert a new user and use DataLoader for result fetching", async () => {
+        const data = await executeQuery(
+          `
+          mutation($values: [UserInsertInput!]!) {
+            userInsertMany(values: $values) {
               id
-              title
+              name
+              email
+              posts {
+                id
+                title
+              }
             }
           }
+          `,
+          {
+            values: [
+              {
+                name: "DataLoader User",
+                email: "dataloader@example.com",
+              },
+            ],
+          }
+        );
+
+        expect(data?.userInsertMany as any[]).toHaveLength(1);
+        expect((data?.userInsertMany as any[])[0].name).toBe("DataLoader User");
+        expect((data?.userInsertMany as any[])[0]).toHaveProperty("id");
+        expect((data?.userInsertMany as any[])[0]).toHaveProperty("posts");
+        expect(Array.isArray((data?.userInsertMany as any[])[0].posts)).toBe(true);
+
+        // Cleanup
+        const insertedId = (data?.userInsertMany as any[])[0].id;
+        await db.delete(user).where(eq(user.id, insertedId));
+      });
+
+      it("should insert multiple users with DataLoader optimization", async () => {
+        const data = await executeQuery(
+          `
+          mutation($values: [UserInsertInput!]!) {
+            userInsertMany(values: $values) {
+              id
+              name
+              email
+              bio
+            }
+          }
+          `,
+          {
+            values: [
+              {
+                name: "Bulk User 1",
+                email: "bulk1@example.com",
+                bio: "First bulk user",
+              },
+              {
+                name: "Bulk User 2",
+                email: "bulk2@example.com",
+                bio: "Second bulk user",
+              },
+              {
+                name: "Bulk User 3",
+                email: "bulk3@example.com",
+                bio: "Third bulk user",
+              },
+            ],
+          }
+        );
+
+        expect(data?.userInsertMany as any[]).toHaveLength(3);
+
+        const insertedUsers = data?.userInsertMany as any[];
+        insertedUsers.forEach(user => {
+          expect(user).toHaveProperty("id");
+          expect(user.id).toBeTruthy();
+        });
+
+        // Sort by name to ensure consistent ordering for assertions
+        const sortedUsers = insertedUsers.sort((a, b) => a.name.localeCompare(b.name));
+        expect(sortedUsers[0].name).toBe("Bulk User 1");
+        expect(sortedUsers[1].name).toBe("Bulk User 2");
+        expect(sortedUsers[2].name).toBe("Bulk User 3");
+
+        // Cleanup
+        for (const insertedUser of insertedUsers) {
+          await db.delete(user).where(eq(user.id, insertedUser.id));
         }
-        `,
-        {
-          values: [
-            {
-              name: "DataLoader User",
-              email: "dataloader@example.com",
-            },
-          ],
-        }
-      );
+      });
 
-      expect(data?.userInsertMany as any[]).toHaveLength(1);
-      expect((data?.userInsertMany as any[])[0].name).toBe("DataLoader User");
-      expect((data?.userInsertMany as any[])[0]).toHaveProperty("id");
-      expect((data?.userInsertMany as any[])[0]).toHaveProperty("posts");
-      expect(Array.isArray((data?.userInsertMany as any[])[0].posts)).toBe(true);
-
-      // Cleanup
-      const insertedId = (data?.userInsertMany as any[])[0].id;
-      await db.delete(user).where(eq(user.id, insertedId));
-    });
-
-    it("should update user and fetch with nested relations using DataLoader", async () => {
-      const data = await executeQuery(
-        `
-        mutation($set: UserUpdateInput!, $where: UserFilters) {
-          userUpdateMany(set: $set, where: $where) {
-            id
-            name
-            posts {
+      it("should insert post with relations and fetch with DataLoader", async () => {
+        const data = await executeQuery(
+          `
+          mutation($values: [PostInsertInput!]!) {
+            postInsertMany(values: $values) {
               id
               title
+              content
+              authorId
+              author {
+                id
+                name
+                email
+              }
               comments {
                 id
                 text
               }
             }
-            profile {
+          }
+          `,
+          {
+            values: [
+              {
+                title: "DataLoader Test Post",
+                content: "Testing DataLoader with post insertion",
+                authorId: testData.userId,
+              },
+            ],
+          }
+        );
+
+        expect(data?.postInsertMany as any[]).toHaveLength(1);
+        const insertedPost = (data?.postInsertMany as any[])[0];
+
+        expect(insertedPost.title).toBe("DataLoader Test Post");
+        expect(insertedPost.authorId).toBe(testData.userId);
+        expect(insertedPost.author).toBeDefined();
+        expect(insertedPost.author.id).toBe(testData.userId);
+        expect(insertedPost.author.name).toBe("Test User");
+        expect(Array.isArray(insertedPost.comments)).toBe(true);
+
+        // Cleanup
+        await db.delete(post).where(eq(post.id, insertedPost.id));
+      });
+
+      it("should insert comment with nested relations using DataLoader", async () => {
+        const data = await executeQuery(
+          `
+          mutation($values: [CommentInsertInput!]!) {
+            commentInsertMany(values: $values) {
               id
-              bio
+              text
+              postId
+              userId
+              post {
+                id
+                title
+                author {
+                  id
+                  name
+                }
+              }
+              user {
+                id
+                name
+              }
+              reactions {
+                id
+                type
+              }
             }
           }
-        }
-        `,
-        {
-          set: { name: "Updated DataLoader User" },
-          where: { id: { eq: testData.userId } },
-        }
-      );
+          `,
+          {
+            values: [
+              {
+                text: "DataLoader comment test",
+                postId: testData.postId,
+                userId: testData.userId,
+              },
+            ],
+          }
+        );
 
-      expect(data?.userUpdateMany as any[]).toHaveLength(1);
-      expect((data?.userUpdateMany as any[])[0].id).toBe(testData.userId);
-      expect((data?.userUpdateMany as any[])[0].name).toBe("Updated DataLoader User");
-      expect((data?.userUpdateMany as any[])[0]).toHaveProperty("posts");
-      expect((data?.userUpdateMany as any[])[0]).toHaveProperty("profile");
+        expect(data?.commentInsertMany as any[]).toHaveLength(1);
+        const insertedComment = (data?.commentInsertMany as any[])[0];
 
-      // Restore original data
-      await db
-        .update(user)
-        .set({ name: "Test User" })
-        .where(eq(user.id, testData.userId));
+        expect(insertedComment.text).toBe("DataLoader comment test");
+        expect(insertedComment.post).toBeDefined();
+        expect(insertedComment.post.id).toBe(testData.postId);
+        expect(insertedComment.post.author).toBeDefined();
+        expect(insertedComment.user).toBeDefined();
+        expect(insertedComment.user.id).toBe(testData.userId);
+        expect(Array.isArray(insertedComment.reactions)).toBe(true);
+
+        // Cleanup
+        await db.delete(comment).where(eq(comment.id, insertedComment.id));
+      });
+    });
+
+    describe("Update Operations", () => {
+      it("should update user and fetch with nested relations using DataLoader", async () => {
+        const data = await executeQuery(
+          `
+          mutation($set: UserUpdateInput!, $where: UserFilters) {
+            userUpdateMany(set: $set, where: $where) {
+              id
+              name
+              posts {
+                id
+                title
+                comments {
+                  id
+                  text
+                }
+              }
+              profile {
+                id
+                bio
+              }
+            }
+          }
+          `,
+          {
+            set: { name: "Updated DataLoader User" },
+            where: { id: { eq: testData.userId } },
+          }
+        );
+
+        expect(data?.userUpdateMany as any[]).toHaveLength(1);
+        expect((data?.userUpdateMany as any[])[0].id).toBe(testData.userId);
+        expect((data?.userUpdateMany as any[])[0].name).toBe("Updated DataLoader User");
+        expect((data?.userUpdateMany as any[])[0]).toHaveProperty("posts");
+        expect((data?.userUpdateMany as any[])[0]).toHaveProperty("profile");
+
+        // Restore original data
+        await db
+          .update(user)
+          .set({ name: "Test User" })
+          .where(eq(user.id, testData.userId));
+      });
+
+      it("should update multiple users with DataLoader optimization", async () => {
+        // First create test users
+        const userIds: string[] = [];
+        for (let i = 0; i < 3; i++) {
+          const userId = generateUlid();
+          userIds.push(userId);
+          await db.insert(user).values({
+            id: userId,
+            name: `Update Test User ${i}`,
+            email: `updatetest${i}@example.com`,
+            bio: "Original bio",
+          });
+        }
+
+        const data = await executeQuery(
+          `
+          mutation($set: UserUpdateInput!, $where: UserFilters) {
+            userUpdateMany(set: $set, where: $where) {
+              id
+              name
+              bio
+              posts {
+                id
+                title
+              }
+            }
+          }
+          `,
+          {
+            set: { bio: "Updated bio via DataLoader" },
+            where: { email: { like: "updatetest%" } },
+          }
+        );
+
+        expect(data?.userUpdateMany as any[]).toHaveLength(3);
+
+        const updatedUsers = data?.userUpdateMany as any[];
+        updatedUsers.forEach(user => {
+          expect(user.bio).toBe("Updated bio via DataLoader");
+          expect(user).toHaveProperty("posts");
+          expect(Array.isArray(user.posts)).toBe(true);
+        });
+
+        // Cleanup
+        for (const userId of userIds) {
+          await db.delete(user).where(eq(user.id, userId));
+        }
+      });
+
+      it("should update post with complex where conditions and DataLoader relations", async () => {
+        const data = await executeQuery(
+          `
+          mutation($set: PostUpdateInput!, $where: PostFilters) {
+            postUpdateMany(set: $set, where: $where) {
+              id
+              title
+              content
+              author {
+                id
+                name
+              }
+              comments {
+                id
+                text
+                user {
+                  id
+                  name
+                }
+              }
+            }
+          }
+          `,
+          {
+            set: {
+              title: "Updated Post Title",
+              content: "Updated content via DataLoader"
+            },
+            where: {
+              id: { eq: testData.postId },
+              authorId: { eq: testData.userId }
+            },
+          }
+        );
+
+        expect(data?.postUpdateMany as any[]).toHaveLength(1);
+        const updatedPost = (data?.postUpdateMany as any[])[0];
+
+        expect(updatedPost.id).toBe(testData.postId);
+        expect(updatedPost.title).toBe("Updated Post Title");
+        expect(updatedPost.content).toBe("Updated content via DataLoader");
+        expect(updatedPost.author).toBeDefined();
+        expect(updatedPost.author.id).toBe(testData.userId);
+        expect(Array.isArray(updatedPost.comments)).toBe(true);
+
+        // Restore original data
+        await db
+          .update(post)
+          .set({
+            title: "Test Post",
+            content: "Test content"
+          })
+          .where(eq(post.id, testData.postId));
+      });
+
+      it("should update comment and verify nested DataLoader relations", async () => {
+        const data = await executeQuery(
+          `
+          mutation($set: CommentUpdateInput!, $where: CommentFilters) {
+            commentUpdateMany(set: $set, where: $where) {
+              id
+              text
+              post {
+                id
+                title
+                author {
+                  id
+                  name
+                }
+              }
+              user {
+                id
+                name
+              }
+              reactions {
+                id
+                type
+                user {
+                  id
+                  name
+                }
+              }
+            }
+          }
+          `,
+          {
+            set: { text: "Updated comment via DataLoader" },
+            where: { id: { eq: testData.commentId } },
+          }
+        );
+
+        expect(data?.commentUpdateMany as any[]).toHaveLength(1);
+        const updatedComment = (data?.commentUpdateMany as any[])[0];
+
+        expect(updatedComment.id).toBe(testData.commentId);
+        expect(updatedComment.text).toBe("Updated comment via DataLoader");
+        expect(updatedComment.post).toBeDefined();
+        expect(updatedComment.post.author).toBeDefined();
+        expect(updatedComment.user).toBeDefined();
+        expect(Array.isArray(updatedComment.reactions)).toBe(true);
+
+        // Restore original data
+        await db
+          .update(comment)
+          .set({ text: "Test comment" })
+          .where(eq(comment.id, testData.commentId));
+      });
+    });
+
+    describe("Delete Operations", () => {
+      it("should delete user and return deleted record with DataLoader relations", async () => {
+        // Create a user to delete
+        const userToDeleteId = generateUlid();
+        await db.insert(user).values({
+          id: userToDeleteId,
+          name: "User To Delete",
+          email: "delete@example.com",
+          bio: "Will be deleted",
+        });
+
+        // Create a post for this user
+        const postToDeleteId = generateUlid();
+        await db.insert(post).values({
+          id: postToDeleteId,
+          title: "Post by user to delete",
+          content: "This post's author will be deleted",
+          authorId: userToDeleteId,
+        });
+
+        // First delete the post to avoid foreign key constraint
+        await db.delete(post).where(eq(post.id, postToDeleteId));
+
+        const data = await executeQuery(
+          `
+          mutation($where: UserFilters) {
+            userDeleteMany(where: $where) {
+              deletedItems {
+                id
+              }
+              userFindMany {
+                id
+                name
+                email
+                bio
+                posts {
+                  id
+                  title
+                  content
+                }
+              }
+            }
+          }
+          `,
+          {
+            where: { id: { eq: userToDeleteId } },
+          }
+        );
+
+        expect(data?.userDeleteMany).toBeDefined();
+        expect(data?.userDeleteMany.deletedItems).toHaveLength(1);
+        expect(data?.userDeleteMany.deletedItems[0].id).toBe(userToDeleteId);
+
+        // The userFindMany returns results after deletion, so it should be empty for this specific user
+        const remainingUsers = data?.userDeleteMany.userFindMany as any[];
+        expect(Array.isArray(remainingUsers)).toBe(true);
+
+        // Verify that the deleted user is not in the remaining users
+        const deletedUserInResults = remainingUsers.find(u => u.id === userToDeleteId);
+        expect(deletedUserInResults).toBeUndefined();
+
+        // Verify user is actually deleted
+        const userCheck = await db.select().from(user).where(eq(user.id, userToDeleteId));
+        expect(userCheck).toHaveLength(0);
+      });
+
+      it("should delete multiple users with DataLoader optimization", async () => {
+        // Create multiple users to delete
+        const userIds: string[] = [];
+        const uniquePrefix = generateUlid().slice(-8);
+        for (let i = 0; i < 3; i++) {
+          const userId = generateUlid();
+          userIds.push(userId);
+          await db.insert(user).values({
+            id: userId,
+            name: `Delete Test User ${i}`,
+            email: `deletetest-${uniquePrefix}-${i}@example.com`,
+            bio: `Bio for user ${i}`,
+          });
+        }
+
+        const data = await executeQuery(
+          `
+          mutation($where: UserFilters) {
+            userDeleteMany(where: $where) {
+              deletedItems {
+                id
+              }
+              userFindMany {
+                id
+                name
+                email
+                posts {
+                  id
+                  title
+                }
+              }
+            }
+          }
+          `,
+          {
+            where: { email: { like: `deletetest-${uniquePrefix}-%` } },
+          }
+        );
+
+        expect(data?.userDeleteMany).toBeDefined();
+        expect(data?.userDeleteMany.deletedItems).toHaveLength(3);
+
+        // The userFindMany returns results after deletion, so should not contain the deleted users
+        const remainingUsers = data?.userDeleteMany.userFindMany as any[];
+        expect(Array.isArray(remainingUsers)).toBe(true);
+
+        // Verify that none of the deleted users are in the remaining users
+        const deletedIds = data?.userDeleteMany.deletedItems.map((item: any) => item.id);
+        remainingUsers.forEach(user => {
+          expect(deletedIds).not.toContain(user.id);
+        });
+
+        // Verify all users are actually deleted
+        for (const userId of userIds) {
+          const userCheck = await db.select().from(user).where(eq(user.id, userId));
+          expect(userCheck).toHaveLength(0);
+        }
+      });
+
+      it("should delete post with nested relations using DataLoader", async () => {
+        // Create a post to delete
+        const postToDeleteId = generateUlid();
+        await db.insert(post).values({
+          id: postToDeleteId,
+          title: "Post to delete",
+          content: "This post will be deleted",
+          authorId: testData.userId,
+        });
+
+        // Create comments for this post
+        const commentIds: string[] = [];
+        for (let i = 0; i < 2; i++) {
+          const commentId = generateUlid();
+          commentIds.push(commentId);
+          await db.insert(comment).values({
+            id: commentId,
+            text: `Comment ${i} on post to delete`,
+            postId: postToDeleteId,
+            userId: testData.userId,
+          });
+        }
+
+        // First delete comments to avoid foreign key constraint
+        for (const commentId of commentIds) {
+          await db.delete(comment).where(eq(comment.id, commentId));
+        }
+
+        const data = await executeQuery(
+          `
+          mutation($where: PostFilters) {
+            postDeleteMany(where: $where) {
+              deletedItems {
+                id
+              }
+              postFindMany {
+                id
+                title
+                content
+                author {
+                  id
+                  name
+                }
+                comments {
+                  id
+                  text
+                  user {
+                    id
+                    name
+                  }
+                }
+              }
+            }
+          }
+          `,
+          {
+            where: { id: { eq: postToDeleteId } },
+          }
+        );
+
+        expect(data?.postDeleteMany).toBeDefined();
+        expect(data?.postDeleteMany.deletedItems).toHaveLength(1);
+        expect(data?.postDeleteMany.deletedItems[0].id).toBe(postToDeleteId);
+
+        // The postFindMany returns results after deletion, so should not contain the deleted post
+        const remainingPosts = data?.postDeleteMany.postFindMany as any[];
+        expect(Array.isArray(remainingPosts)).toBe(true);
+
+        // Verify that the deleted post is not in the remaining posts
+        const deletedPostInResults = remainingPosts.find(p => p.id === postToDeleteId);
+        expect(deletedPostInResults).toBeUndefined();
+
+        // Verify post is actually deleted
+        const postCheck = await db.select().from(post).where(eq(post.id, postToDeleteId));
+        expect(postCheck).toHaveLength(0);
+      });
+
+      it("should delete comment with complex nested relations", async () => {
+        // Create a comment to delete
+        const commentToDeleteId = generateUlid();
+        await db.insert(comment).values({
+          id: commentToDeleteId,
+          text: "Comment to delete",
+          postId: testData.postId,
+          userId: testData.userId,
+        });
+
+        // Create reactions for this comment
+        const reactionIds: string[] = [];
+        for (let i = 0; i < 2; i++) {
+          const reactionId = generateUlid();
+          reactionIds.push(reactionId);
+          await db.insert(reaction).values({
+            id: reactionId,
+            commentId: commentToDeleteId,
+            userId: testData.userId,
+            type: i === 0 ? "LIKE" : "DISLIKE",
+          });
+        }
+
+        // First delete reactions to avoid foreign key constraint
+        for (const reactionId of reactionIds) {
+          await db.delete(reaction).where(eq(reaction.id, reactionId));
+        }
+
+        const data = await executeQuery(
+          `
+          mutation($where: CommentFilters) {
+            commentDeleteMany(where: $where) {
+              deletedItems {
+                id
+              }
+              commentFindMany {
+                id
+                text
+                post {
+                  id
+                  title
+                  author {
+                    id
+                    name
+                  }
+                }
+                user {
+                  id
+                  name
+                }
+                reactions {
+                  id
+                  type
+                  user {
+                    id
+                    name
+                  }
+                }
+              }
+            }
+          }
+          `,
+          {
+            where: { id: { eq: commentToDeleteId } },
+          }
+        );
+
+        expect(data?.commentDeleteMany).toBeDefined();
+        expect(data?.commentDeleteMany.deletedItems).toHaveLength(1);
+        expect(data?.commentDeleteMany.deletedItems[0].id).toBe(commentToDeleteId);
+
+        // The commentFindMany returns results after deletion, so should not contain the deleted comment
+        const remainingComments = data?.commentDeleteMany.commentFindMany as any[];
+        expect(Array.isArray(remainingComments)).toBe(true);
+
+        // Verify that the deleted comment is not in the remaining comments
+        const deletedCommentInResults = remainingComments.find(c => c.id === commentToDeleteId);
+        expect(deletedCommentInResults).toBeUndefined();
+
+        // Verify comment is actually deleted
+        const commentCheck = await db.select().from(comment).where(eq(comment.id, commentToDeleteId));
+        expect(commentCheck).toHaveLength(0);
+      });
+
+      it("should delete with complex where conditions and DataLoader relations", async () => {
+        // Create multiple posts to test complex deletion
+        const postIds: string[] = [];
+        for (let i = 0; i < 3; i++) {
+          const postId = generateUlid();
+          postIds.push(postId);
+          await db.insert(post).values({
+            id: postId,
+            title: `Complex Delete Post ${i}`,
+            content: `Content for complex delete test ${i}`,
+            authorId: testData.userId,
+          });
+        }
+
+        const data = await executeQuery(
+          `
+          mutation($where: PostFilters) {
+            postDeleteMany(where: $where) {
+              deletedItems {
+                id
+              }
+              postFindMany {
+                id
+                title
+                content
+                author {
+                  id
+                  name
+                  email
+                }
+                comments {
+                  id
+                  text
+                }
+              }
+            }
+          }
+          `,
+          {
+            where: {
+              title: { like: "Complex Delete%" }
+            },
+          }
+        );
+
+        expect(data?.postDeleteMany).toBeDefined();
+        expect(data?.postDeleteMany.deletedItems).toHaveLength(3);
+
+        // The postFindMany returns results after deletion, so should not contain the deleted posts
+        const remainingPosts = data?.postDeleteMany.postFindMany as any[];
+        expect(Array.isArray(remainingPosts)).toBe(true);
+
+        // Verify that none of the deleted posts are in the remaining posts
+        const deletedIds = data?.postDeleteMany.deletedItems.map((item: any) => item.id);
+        remainingPosts.forEach(post => {
+          expect(deletedIds).not.toContain(post.id);
+        });
+
+        // Verify all posts are actually deleted
+        for (const postId of postIds) {
+          const postCheck = await db.select().from(post).where(eq(post.id, postId));
+          expect(postCheck).toHaveLength(0);
+        }
+      });
     });
   });
 

@@ -11,9 +11,79 @@ This directory contains a DataLoader-optimized version of `buildSchemaSDL` that 
 
 ## Usage
 
+### Option 1: Using the Comprehensive Envelop Plugin with Database Injection (Recommended)
+
 ```typescript
-import { buildSchemaSDL } from './build-schema-sdl-with-dl';
-import { createDataLoaderContext, cleanupDataLoaderContext } from './build-schema-sdl-with-dl/generator/utils/context';
+import { createYoga, useEnvelop } from 'graphql-yoga';
+import { envelop, useEngine, useSchema } from '@envelop/core';
+import { execute, subscribe } from 'graphql';
+import { buildSchemaSDL, useDataLoaderCleanup } from './build-schema-sdl-with-dl';
+
+// Generate schema with DataLoader (always enabled)
+const { typeDefs, resolvers } = buildSchemaSDL(db);
+const schema = makeExecutableSchema({ typeDefs, resolvers });
+
+// Create Envelop instance with comprehensive DataLoader plugin
+const getEnveloped = envelop({
+  plugins: [
+    useEngine({ execute, subscribe }),
+    useSchema(schema),
+    useDataLoaderCleanup({ db }), // Handles context creation, db injection, AND cleanup automatically
+  ],
+});
+
+const yoga = createYoga({
+  plugins: [useEnvelop(getEnveloped)],
+  context: async ({ request }) => {
+    // DataLoader context AND database are automatically injected!
+    return {
+      request,
+      // db and relationLoaders are added automatically
+    };
+  },
+});
+```
+
+### Option 2: Using the Plugin Without Database Injection
+
+```typescript
+const getEnveloped = envelop({
+  plugins: [
+    useDataLoaderCleanup(), // Only handles DataLoader context creation and cleanup
+  ],
+});
+
+const yoga = createYoga({
+  plugins: [useEnvelop(getEnveloped)],
+  context: async ({ request }) => {
+    return {
+      request,
+      db, // You still need to add db manually
+      // relationLoaders are added automatically
+    };
+  },
+});
+```
+
+### Option 3: Using Separate Plugins for Granular Control
+
+```typescript
+import { useDataLoaderContext, useDataLoaderCleanupOnly } from './build-schema-sdl-with-dl';
+
+const getEnveloped = envelop({
+  plugins: [
+    useEngine({ execute, subscribe }),
+    useSchema(schema),
+    useDataLoaderContext({ db }),    // Creates context and injects db
+    useDataLoaderCleanupOnly(),      // Only handles cleanup
+  ],
+});
+```
+
+### Option 4: Using Inline Plugin
+
+```typescript
+import { buildSchemaSDL, createDataLoaderContext, cleanupDataLoaderContext } from './build-schema-sdl-with-dl';
 
 // Generate schema with DataLoader (always enabled)
 const { typeDefs, resolvers } = buildSchemaSDL(db);
@@ -30,9 +100,11 @@ const yoga = createYoga({
   },
   plugins: [
     {
-      onRequestResult: ({ result }) => {
-        cleanupDataLoaderContext(result.context);
-      }
+      onExecute: ({ args }) => ({
+        onExecuteDone: ({ result }) => {
+          cleanupDataLoaderContext(args.contextValue);
+        }
+      })
     }
   ]
 });

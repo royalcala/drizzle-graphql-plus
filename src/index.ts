@@ -31,6 +31,13 @@ export {
 } from "./build-schema-sdl-with-dl/generator/utils/context";
 export type { DataLoaderContext } from "./build-schema-sdl-with-dl/generator/utils/dataloader";
 
+// Export DataLoader Envelop plugins
+export {
+  useDataLoaderCleanup,
+  useDataLoaderContext,
+  useDataLoaderCleanupOnly,
+} from "./build-schema-sdl-with-dl/generator/utils/envelop-plugin";
+
 export { createExportMiddleware, makeScalarAcceptExports } from "./export-tool";
 export { setCustomGraphQL, setCustomGraphQLTypes } from "./helpers";
 export type { GraphQLFieldConfig } from "./helpers";

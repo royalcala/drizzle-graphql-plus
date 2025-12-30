@@ -53,6 +53,81 @@ const { typeDefs, resolvers } = buildSchemaSDL(db, {
 ### 2. Setup Context in Your GraphQL Server
 
 #### With GraphQL Yoga
+
+**Option 1: Using the Comprehensive Envelop Plugin with Database Injection (Recommended)**
+```typescript
+import { createYoga, useEnvelop } from 'graphql-yoga';
+import { envelop, useEngine, useSchema } from '@envelop/core';
+import { execute, subscribe } from 'graphql';
+import { 
+  buildSchemaSDLWithDataLoader, 
+  useDataLoaderCleanup // Available from main package!
+} from 'drizzle-graphql-plus';
+
+const { typeDefs, resolvers } = buildSchemaSDLWithDataLoader(db);
+const schema = makeExecutableSchema({ typeDefs, resolvers });
+
+// Create Envelop instance with comprehensive DataLoader plugin
+const getEnveloped = envelop({
+  plugins: [
+    useEngine({ execute, subscribe }),
+    useSchema(schema),
+    useDataLoaderCleanup({ db }), // Automatically injects db AND creates/cleans DataLoaders
+  ],
+});
+
+const yoga = createYoga({
+  plugins: [useEnvelop(getEnveloped)],
+  context: async ({ request }) => {
+    // DataLoader context AND database are automatically injected!
+    return {
+      request,
+      // db and relationLoaders are added automatically by the plugin
+    };
+  },
+});
+```
+
+**Option 2: Using the Plugin Without Database Injection**
+```typescript
+const getEnveloped = envelop({
+  plugins: [
+    useEngine({ execute, subscribe }),
+    useSchema(schema),
+    useDataLoaderCleanup(), // Only handles DataLoader context creation and cleanup
+  ],
+});
+
+const yoga = createYoga({
+  plugins: [useEnvelop(getEnveloped)],
+  context: async ({ request }) => {
+    return {
+      request,
+      db, // You still need to add db manually
+      // relationLoaders are added automatically
+    };
+  },
+});
+```
+
+**Option 3: Using Separate Plugins for Granular Control**
+```typescript
+import { 
+  useDataLoaderContext,    // Creates context and optionally injects db
+  useDataLoaderCleanupOnly // Only handles cleanup
+} from 'drizzle-graphql-plus'; // Available from main package!
+
+const getEnveloped = envelop({
+  plugins: [
+    useEngine({ execute, subscribe }),
+    useSchema(schema),
+    useDataLoaderContext({ db }),    // Create DataLoader context and inject db
+    useDataLoaderCleanupOnly(),      // Handle cleanup
+  ],
+});
+```
+
+**Option 4: Using Inline Plugin**
 ```typescript
 import { createYoga } from 'graphql-yoga';
 import { createDataLoaderContext, cleanupDataLoaderContext } from 'drizzle-graphql-plus/build-schema-sdl-with-dl/utils';
@@ -69,12 +144,14 @@ const yoga = createYoga({
   },
   plugins: [
     {
-      onRequestResult: ({ result }) => {
-        // Cleanup after each request
-        if (result.context?.relationLoaders) {
-          cleanupDataLoaderContext(result.context);
+      onExecute: ({ args }) => ({
+        onExecuteDone: ({ result }) => {
+          // Cleanup after each request
+          if (args.contextValue?.relationLoaders) {
+            cleanupDataLoaderContext(args.contextValue);
+          }
         }
-      }
+      })
     }
   ]
 });
@@ -221,9 +298,11 @@ const userResolver = createFindManyResolver(/*...*/);
 // Always cleanup DataLoaders after each request
 plugins: [
   {
-    onRequestResult: ({ result }) => {
-      cleanupDataLoaderContext(result.context);
-    }
+    onExecute: ({ args }) => ({
+      onExecuteDone: ({ result }) => {
+        cleanupDataLoaderContext(args.contextValue);
+      }
+    })
   }
 ]
 ```

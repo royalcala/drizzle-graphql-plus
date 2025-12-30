@@ -1,13 +1,14 @@
 import { createServer } from "node:http";
-import { createYoga } from "graphql-yoga";
+import { createYoga, useEnvelop } from "graphql-yoga";
+import { envelop, useEngine, useSchema } from '@envelop/core';
+import { GraphQLSchema, execute, subscribe } from 'graphql';
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
-import { buildSchemaSDL } from "../index";
+import { buildSchemaSDL, useDataLoaderCleanup } from "../index";
 import * as schema from "./schema";
 import { makeExecutableSchema } from "@graphql-tools/schema";
 import { writeFileSync } from "node:fs";
 import { GraphQLULID } from "graphql-scalars";
-import { createDataLoaderContext, cleanupDataLoaderContext } from "../generator/utils/context";
 
 // Create LibSQL client
 const client = createClient({
@@ -62,36 +63,29 @@ export const graphqlSchema = makeExecutableSchema({
 
 writeFileSync("src/build-schema-sdl-with-dl/tests/auto-generated-schema.graphql", extendedTypeDefs);
 
-// Create Yoga server with DataLoader context
+// Create Envelop instance with comprehensive DataLoader plugin
+const getEnveloped = envelop({
+  plugins: [
+    useEngine({ execute, subscribe }),
+    useSchema(graphqlSchema),
+    useDataLoaderCleanup({ db }), // Handles context creation, db injection, AND cleanup automatically
+  ],
+});
+
+// Create Yoga server with Envelop
 const yoga = createYoga({
-  schema: graphqlSchema,
+  plugins: [useEnvelop(getEnveloped)],
   graphiql: {
     title: "Drizzle-GraphQL DataLoader Test Server",
   },
   context: async ({ request }) => {
-    // Create DataLoader context for each request
-    const dataLoaderContext = createDataLoaderContext();
-    
+    // DataLoader context AND database are automatically injected by the plugin!
+    // Just add your other context properties
     return {
-      // Your existing context
       request,
-      // Add database instance for DataLoader resolvers
-      db,
-      // Add DataLoader context
-      ...dataLoaderContext,
+      // db and relationLoaders are added automatically by the plugin
     };
   },
-  plugins: [
-    // Plugin to automatically cleanup DataLoaders after each request
-    {
-      onRequestResult: ({ result }) => {
-        // Cleanup DataLoaders after request completion
-        if (result.context?.relationLoaders) {
-          cleanupDataLoaderContext(result.context);
-        }
-      }
-    }
-  ]
 });
 
 // Create HTTP server
