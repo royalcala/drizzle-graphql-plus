@@ -1,208 +1,338 @@
-# Build Schema SDL with DataLoader
+# Drizzle GraphQL SDL with DataLoader
 
-This directory contains a DataLoader-optimized version of `buildSchemaSDL` that eliminates N+1 query problems and dramatically improves performance for relational queries.
+A composable GraphQL schema generator for Drizzle ORM with built-in DataLoader optimization and directive support.
 
-## Key Features
+## Features
 
-- **DataLoader Always Enabled**: Built-in DataLoader support with no configuration needed
-- **Zero Configuration**: Simple API - just pass your database instance
-- **Performance Optimized**: Eliminates N+1 queries by batching relation queries
-- **Clean Separation**: Focused solely on DataLoader approach (legacy patterns in separate folder)
+- 🚀 **DataLoader optimization** - Automatic batching and caching for relations
+- 🎯 **Self-referencing relations** - Support for comment replies, nested categories, etc.
+- 🔧 **Composable architecture** - Mix and match features as needed
+- 📝 **GraphQL directives** - `@populateFromParent` for query optimization
+- 🎨 **Custom scalars** - Built-in JSON scalar and easy custom scalar support
+- 🔒 **Type safety** - Full TypeScript support with inferred types
 
-## Usage
+## Basic Usage
 
-### Option 1: Using the Comprehensive Envelop Plugin with Database Injection (Recommended)
-
-```typescript
-import { createYoga, useEnvelop } from 'graphql-yoga';
-import { envelop, useEngine, useSchema } from '@envelop/core';
-import { execute, subscribe } from 'graphql';
-import { buildSchemaSDL, useDataLoaderCleanup } from './build-schema-sdl-with-dl';
-
-// Generate schema with DataLoader (always enabled)
-const { typeDefs, resolvers } = buildSchemaSDL(db);
-const schema = makeExecutableSchema({ typeDefs, resolvers });
-
-// Create Envelop instance with comprehensive DataLoader plugin
-const getEnveloped = envelop({
-  plugins: [
-    useEngine({ execute, subscribe }),
-    useSchema(schema),
-    useDataLoaderCleanup({ db }), // Handles context creation, db injection, AND cleanup automatically
-  ],
-});
-
-const yoga = createYoga({
-  plugins: [useEnvelop(getEnveloped)],
-  context: async ({ request }) => {
-    // DataLoader context AND database are automatically injected!
-    return {
-      request,
-      // db and relationLoaders are added automatically
-    };
-  },
-});
-```
-
-### Option 2: Using the Plugin Without Database Injection
+### Explicit Control Approach (Recommended)
 
 ```typescript
-const getEnveloped = envelop({
-  plugins: [
-    useDataLoaderCleanup(), // Only handles DataLoader context creation and cleanup
-  ],
-});
+import { 
+  buildSchemaSDL, 
+  populateFromParentDirectiveTypeDefs,
+  exportDirectiveTypeDefs,
+  commonScalars,
+  makeExecutableSchema,
+  applyDirectiveTransformers
+} from "./index";
+import { drizzle } from "drizzle-orm/libsql";
 
-const yoga = createYoga({
-  plugins: [useEnvelop(getEnveloped)],
-  context: async ({ request }) => {
-    return {
-      request,
-      db, // You still need to add db manually
-      // relationLoaders are added automatically
-    };
-  },
-});
-```
+const db = drizzle(client, { schema });
 
-### Option 3: Using Separate Plugins for Granular Control
-
-```typescript
-import { useDataLoaderContext, useDataLoaderCleanupOnly } from './build-schema-sdl-with-dl';
-
-const getEnveloped = envelop({
-  plugins: [
-    useEngine({ execute, subscribe }),
-    useSchema(schema),
-    useDataLoaderContext({ db }),    // Creates context and injects db
-    useDataLoaderCleanupOnly(),      // Only handles cleanup
-  ],
-});
-```
-
-### Option 4: Using Inline Plugin
-
-```typescript
-import { buildSchemaSDL, createDataLoaderContext, cleanupDataLoaderContext } from './build-schema-sdl-with-dl';
-
-// Generate schema with DataLoader (always enabled)
+// 1. Generate basic schema
 const { typeDefs, resolvers } = buildSchemaSDL(db);
 
-// Setup GraphQL server with DataLoader context
-const yoga = createYoga({
-  typeDefs,
-  resolvers,
-  context: async () => {
-    return {
-      db, // Required for DataLoader resolvers
-      ...createDataLoaderContext()
-    };
+// 2. Create executable schema with explicit typeDefs array
+const executableSchema = makeExecutableSchema({
+  typeDefs: [
+    populateFromParentDirectiveTypeDefs,  // @populateFromParent directive
+    exportDirectiveTypeDefs,              // @export directive
+    `enum Status { ACTIVE INACTIVE }`,    // Your custom types
+    typeDefs                              // Generated schema
+  ],
+  resolvers: {
+    ...resolvers,
+    ...commonScalars,
+    // Your custom scalars/resolvers
   },
-  plugins: [
-    {
-      onExecute: ({ args }) => ({
-        onExecuteDone: ({ result }) => {
-          cleanupDataLoaderContext(args.contextValue);
-        }
-      })
+});
+
+// 3. Apply directive transformers
+const schema = applyDirectiveTransformers(executableSchema, {
+  includePopulateFromParent: true,
+});
+
+// 4. Use with any GraphQL server
+const server = new ApolloServer({ schema });
+```
+
+This gives you full control over what gets included and in what order!
+
+### Manual Composable Approach (Advanced)
+
+If you need even more control, you can build everything step by step:
+
+```typescript
+import { 
+  buildSchemaSDL, 
+  populateFromParentDirectiveTypeDefs,
+  exportDirectiveTypeDefs,
+  commonScalars,
+  makeExecutableSchema,
+  populateFromParentDirectiveTransformer
+} from "./index";
+
+// 1. Generate basic typeDefs and resolvers
+const { typeDefs, resolvers } = buildSchemaSDL(db);
+
+// 2. Build your typeDefs array exactly how you want
+const allTypeDefs = [
+  populateFromParentDirectiveTypeDefs,
+  exportDirectiveTypeDefs,
+  `scalar DateTime`,
+  `enum Status { ACTIVE INACTIVE }`,
+  typeDefs
+];
+
+// 3. Create executable schema
+const executableSchema = makeExecutableSchema({
+  typeDefs: allTypeDefs,
+  resolvers: { 
+    ...resolvers, 
+    ...commonScalars,
+    DateTime: myDateTimeScalar 
+  },
+});
+
+// 4. Apply only the transformers you want
+const schema = populateFromParentDirectiveTransformer(executableSchema);
+```
+
+## Composable Architecture
+
+### 1. Basic Schema Generation
+
+```typescript
+const { typeDefs, resolvers } = buildSchemaSDL(db);
+```
+
+### 2. Add Custom Types and Scalars
+
+```typescript
+import { commonScalars } from "./index";
+
+const customTypes = `
+  enum Status { ACTIVE INACTIVE }
+  scalar DateTime
+`;
+
+const extendedTypeDefs = customTypes + "\n" + typeDefs;
+const extendedResolvers = {
+  ...resolvers,
+  ...commonScalars, // Includes JSON scalar
+  DateTime: myDateTimeScalar,
+  Status: myStatusResolver,
+};
+```
+
+### 3. Add Directive Definitions
+
+```typescript
+import { addDirectiveDefinitions } from "./index";
+
+const typeDefsWithDirectives = addDirectiveDefinitions(extendedTypeDefs);
+```
+
+### 4. Apply Directive Transformers
+
+```typescript
+import { applyDirectiveTransformers } from "./index";
+import { makeExecutableSchema } from "@graphql-tools/schema";
+
+// Create basic executable schema
+const executableSchema = makeExecutableSchema({
+  typeDefs: typeDefsWithDirectives,
+  resolvers: extendedResolvers,
+});
+
+// Apply directive transformers
+const schemaWithDirectives = applyDirectiveTransformers(executableSchema, {
+  includePopulateFromParent: true
+});
+```
+
+## Available Exports
+
+### Core Functions
+
+- `buildSchemaSDL(db)` - Generate basic typeDefs and resolvers
+- `makeExecutableSchema` - Re-exported from @graphql-tools/schema for convenience
+- `applyDirectiveTransformers(schema, options)` - Apply directive transformers to executable schema
+
+### Directive TypeDefs
+
+- `populateFromParentDirectiveTypeDefs` - TypeDefs for @populateFromParent directive
+- `exportDirectiveTypeDefs` - TypeDefs for @export directive
+
+### Utilities
+
+- `commonScalars` - Pre-built scalars (JSON, etc.)
+- `populateFromParentDirectiveTransformer` - Individual transformer function
+
+## GraphQL Directives
+
+### @populateFromParent
+
+Optimizes nested queries by reusing parent data when possible:
+
+```graphql
+query {
+  posts {
+    id
+    title
+    comments {
+      id
+      text
+      # Uses parent data instead of fresh DB query
+      replies @populateFromParent(source: "comments") {
+        id
+        text
+      }
     }
-  ]
+  }
+}
+```
+
+### @export
+
+Enables cross-field dependencies by allowing one field to export a value that another field can consume:
+
+```graphql
+query {
+  user: userFindFirst(where: { email: { eq: "john@example.com" } }) {
+    id @export(as: "userId")
+    name
+  }
+  posts: postFindMany(where: { userId: { eq: $_userId } }) {
+    title
+  }
+}
+```
+
+Both directives automatically fall back to fresh DB queries when complex filtering is needed.
+
+## DataLoader Features
+
+- **Automatic batching** - Multiple relation queries are batched together
+- **Caching** - Results are cached within the same request
+- **N+1 prevention** - Eliminates N+1 query problems
+- **Self-referencing relations** - Handles comment replies, nested categories, etc.
+
+## Performance Analysis
+
+The DataLoader implementation provides significant performance improvements:
+
+```
+Without DataLoader: 1 + N queries (N+1 problem)
+With DataLoader: 2-4 optimized queries (batched)
+```
+
+For complex nested relations like posts → comments → replies:
+- **Traditional**: 1 + N + M queries
+- **With DataLoader**: 4 queries (posts, comments, replies, parent comments)
+- **With @populateFromParent**: 2 queries (posts, comments - replies populated from parent)
+
+## Integration Examples
+
+### Apollo Server
+
+```typescript
+import { ApolloServer } from '@apollo/server';
+import { 
+  buildSchemaSDL, 
+  populateFromParentDirectiveTypeDefs,
+  exportDirectiveTypeDefs,
+  commonScalars,
+  makeExecutableSchema,
+  applyDirectiveTransformers
+} from './index';
+
+const { typeDefs, resolvers } = buildSchemaSDL(db);
+
+const schema = applyDirectiveTransformers(
+  makeExecutableSchema({
+    typeDefs: [
+      populateFromParentDirectiveTypeDefs,
+      exportDirectiveTypeDefs,
+      typeDefs
+    ],
+    resolvers: { ...resolvers, ...commonScalars },
+  }),
+  { includePopulateFromParent: true }
+);
+
+const server = new ApolloServer({ schema });
+```
+
+### GraphQL Yoga
+
+```typescript
+import { createYoga } from 'graphql-yoga';
+import { 
+  buildSchemaSDL, 
+  populateFromParentDirectiveTypeDefs,
+  exportDirectiveTypeDefs,
+  commonScalars,
+  makeExecutableSchema,
+  applyDirectiveTransformers
+} from './index';
+
+const { typeDefs, resolvers } = buildSchemaSDL(db);
+
+const schema = applyDirectiveTransformers(
+  makeExecutableSchema({
+    typeDefs: [
+      populateFromParentDirectiveTypeDefs,
+      exportDirectiveTypeDefs,
+      typeDefs
+    ],
+    resolvers: { ...resolvers, ...commonScalars },
+  }),
+  { includePopulateFromParent: true }
+);
+
+const yoga = createYoga({ schema });
+```
+
+## Why Separated Architecture?
+
+The new composable approach provides several benefits:
+
+1. **Flexibility** - Use only what you need
+2. **Testability** - Each component can be tested independently  
+3. **Customization** - Easy to add custom types, scalars, and directives
+4. **Server agnostic** - Works with any GraphQL server
+5. **Progressive enhancement** - Start basic, add features as needed
+
+## Migration from Complex Multi-Step Approach
+
+**Before (Complex Multi-Step):**
+```typescript
+const { typeDefs, resolvers } = buildSchemaSDL(db);
+const typeDefsWithDirectives = addDirectiveDefinitions(typeDefs);
+const executableSchema = makeExecutableSchema({
+  typeDefs: typeDefsWithDirectives,
+  resolvers: { ...resolvers, ...commonScalars },
+});
+const schemaWithDirectives = applyDirectiveTransformers(executableSchema, {
+  includePopulateFromParent: true
 });
 ```
 
-## Performance Benefits
-
-### Without DataLoader (Legacy)
-```
-Query: 100 posts with comments and authors
-- 1 query for posts
-- 100 queries for comments (one per post)  
-- N queries for comment authors
-- 100 queries for post authors
-Total: 201+ queries
-```
-
-### With DataLoader (This Version)
-```
-Query: 100 posts with comments and authors
-- 1 query for posts
-- 1 batched query for all comments
-- 1 batched query for all comment authors  
-- 1 batched query for all post authors
-Total: 4 queries
-```
-
-## Directory Structure
-
-```
-src/build-schema-sdl-with-dl/
-├── index.ts                    # Main entry point (simplified API)
-├── generator/
-│   ├── types.ts               # Type definitions (no config types)
-│   ├── schema/                # Schema generation
-│   │   ├── generation.ts      # Table and relation analysis
-│   │   ├── type-defs.ts       # GraphQL type definitions
-│   │   └── index.ts
-│   ├── queries/               # Query resolvers
-│   │   ├── dataloader-resolvers.ts  # DataLoader resolvers (only)
-│   │   └── index.ts
-│   ├── mutations/             # Mutation resolvers
-│   │   ├── resolvers.ts       # Mutation implementations
-│   │   └── index.ts
-│   └── utils/                 # Utilities
-│       ├── dataloader.ts      # DataLoader implementation
-│       ├── context.ts         # Context management
-│       ├── filters.ts         # Where clause building
-│       └── selection.ts       # Field selection
-└── README.md                  # This file
-```
-
-## API Comparison
-
-### Legacy buildSchemaSDL (with options)
+**After (Explicit Control):**
 ```typescript
-// Located in src/buildSchemaSDL/
-const { typeDefs, resolvers } = buildSchemaSDL(db, {
-  useDataLoader: true,
-  relationsDepthLimit: 5,
-  // ... other options
-});
+const { typeDefs, resolvers } = buildSchemaSDL(db);
+
+const schema = applyDirectiveTransformers(
+  makeExecutableSchema({
+    typeDefs: [
+      populateFromParentDirectiveTypeDefs,
+      exportDirectiveTypeDefs,
+      typeDefs
+    ],
+    resolvers: { ...resolvers, ...commonScalars },
+  }),
+  { includePopulateFromParent: true }
+);
 ```
 
-### DataLoader-Only buildSchemaSDL (this version)
-```typescript
-// Located in src/build-schema-sdl-with-dl/
-const { typeDefs, resolvers } = buildSchemaSDL(db); // No options needed!
-```
-
-## Migration from Legacy buildSchemaSDL
-
-1. Change import path:
-   ```typescript
-   // Before
-   import { buildSchemaSDL } from './buildSchemaSDL';
-   
-   // After  
-   import { buildSchemaSDL } from './build-schema-sdl-with-dl';
-   ```
-
-2. Remove configuration options:
-   ```typescript
-   // Before
-   const { typeDefs, resolvers } = buildSchemaSDL(db, {
-     useDataLoader: true,
-     relationsDepthLimit: 5
-   });
-   
-   // After
-   const { typeDefs, resolvers } = buildSchemaSDL(db);
-   ```
-
-3. Add DataLoader context to your GraphQL server (see usage example above)
-
-4. Enjoy improved performance with cleaner code!
-
-## See Also
-
-- [DataLoader Documentation](../../docs/DATALOADER.md) - Comprehensive guide
-- [Usage Examples](../../examples/dataloader-usage.ts) - Complete examples
+This gives you full transparency and control over what gets included in your schema, while still providing all the powerful features with minimal code.

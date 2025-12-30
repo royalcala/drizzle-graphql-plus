@@ -5,6 +5,26 @@ directive @export(as: String!) on FIELD
     DISLIKE
   }
 
+
+  """
+  Populate field data from parent object instead of making new DB query.
+  Only works when no complex arguments (where, orderBy, limit) are provided.
+  Falls back to fresh DB query when complex filtering is needed.
+  """
+  directive @populateFromParent(
+    """The parent field name to get data from (e.g., 'comments')"""
+    source: String!
+    
+    """Filter to apply to parent data using simple conditions"""
+    filter: JSON
+    
+    """Return single item instead of array"""
+    single: Boolean = false
+  ) on FIELD
+
+  """JSON scalar for flexible filter conditions"""
+  scalar JSON
+
 scalar Date
 
 enum OrderByDirection {
@@ -135,9 +155,12 @@ type Comment {
   text: String!
   postId: ID!
   userId: ID!
+  commentId: ID
   post(where: PostFilters): Post
   user(where: UserFilters): User
   reactions(where: ReactionFilters, orderBy: ReactionOrderBy, limit: Int, offset: Int): [Reaction!]!
+  parentComment(where: CommentFilters): Comment
+  replies(where: CommentFilters, orderBy: CommentOrderBy, limit: Int, offset: Int): [Comment!]!
 }
 
 input CommentInsertInput {
@@ -145,6 +168,7 @@ input CommentInsertInput {
   text: String!
   postId: ID!
   userId: ID!
+  commentId: ID
 }
 
 input CommentUpdateInput {
@@ -152,6 +176,7 @@ input CommentUpdateInput {
   text: String
   postId: ID
   userId: ID
+  commentId: ID
 }
 
 input CommentFilters {
@@ -159,6 +184,7 @@ input CommentFilters {
   text: StringFieldFilter
   postId: IDFieldFilter
   userId: IDFieldFilter
+  commentId: IDFieldFilter
   OR: [CommentFilters!]
 }
 
@@ -167,6 +193,7 @@ input CommentOrderBy {
   text: InnerOrder
   postId: InnerOrder
   userId: InnerOrder
+  commentId: InnerOrder
 }
 
 type CommentDeleteResult {

@@ -1,21 +1,13 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
-import { buildSchemaSDL } from "../index";
 import * as schema from "./schema";
 import { user, post, comment, reaction, userProfile, city, sport } from "./schema";
 import { ulid as generateUlid } from "ulid";
 import { graphql, GraphQLSchema } from "graphql";
-import { makeExecutableSchema } from "@graphql-tools/schema";
-import { GraphQLULID } from "graphql-scalars";
 import { eq } from "drizzle-orm";
-import { composeResolvers } from "@graphql-tools/resolvers-composition";
-import {
-  createExportMiddleware,
-  ExportStore,
-  makeScalarAcceptExports,
-} from "../../../src/export-tool";
 import { createDataLoaderContext, cleanupDataLoaderContext } from "../generator/utils/context";
+import { createStandardSchema } from "./shared-config";
 
 // Create test database client
 const client = createClient({
@@ -24,45 +16,17 @@ const client = createClient({
 
 const db = drizzle(client, { schema });
 
-// Build GraphQL schema with DataLoader always enabled
-const { typeDefs, resolvers } = buildSchemaSDL(db);
+// ===== USE SHARED STANDARD SCHEMA CONFIGURATION =====
+const { schema: unifiedSchema } = createStandardSchema(db);
 
-// Create executable schema
-const customTypeDefinitions = `enum ReactionType { LIKE DISLIKE }`;
-const extendedTypeDefs = customTypeDefinitions + "\n" + typeDefs;
-
-const resolversWithScalars = { ...resolvers };
-let executableSchema = makeExecutableSchema({
-  typeDefs: extendedTypeDefs,
-  resolvers: resolversWithScalars,
-});
-
-// Create FlexibleID using the new factory function (validates ULID format and supports exports)
-GraphQLULID.name = "ID";
-const ID = makeScalarAcceptExports(GraphQLULID);
-
-// Wrap resolvers with export middleware AND add FlexibleID scalar
-const composedResolvers = composeResolvers(
-  {
-    ...resolvers,
-    ID,
-  },
-  {
-    "*.*": [createExportMiddleware()],
-  }
-);
-let executableSchemaWithExport = makeExecutableSchema({
-  typeDefs: extendedTypeDefs + "\ndirective @export(as: String!) on FIELD",
-  resolvers: composedResolvers,
-});
-
-// Helper to execute GraphQL queries with DataLoader context
+// Helper to execute GraphQL queries with unified schema
+// Uses the shared standard schema configuration
 async function executeQuery(query: string, variables?: Record<string, any>) {
   const dataLoaderContext = createDataLoaderContext();
 
   try {
     const result = await graphql({
-      schema: executableSchema,
+      schema: unifiedSchema, // Uses shared standard schema configuration
       source: query,
       variableValues: variables,
       contextValue: {
@@ -82,6 +46,7 @@ async function executeQuery(query: string, variables?: Record<string, any>) {
 }
 
 // Helper to execute GraphQL queries with export-tool enabled and DataLoader
+// Uses the shared schema configuration for consistency
 async function executeQueryWithExport(
   query: string,
   variables?: Record<string, any>,
@@ -96,7 +61,7 @@ async function executeQueryWithExport(
 
   try {
     const result = await graphql({
-      schema: executableSchemaWithExport,
+      schema: unifiedSchema, // Uses shared standard schema configuration
       source: query,
       variableValues: variables,
       contextValue: combinedContext,
@@ -1526,6 +1491,10 @@ describe("DataLoader Resolver Tests", () => {
 
   describe("DataLoader Type Safety Tests", () => {
     it("should have correct resolver structure with DataLoader", () => {
+      // Get resolvers from the schema for testing
+      const { buildSchemaSDL } = require("../index");
+      const { resolvers } = buildSchemaSDL(db);
+
       expect(resolvers).toHaveProperty("Query");
       expect(resolvers).toHaveProperty("Mutation");
       expect(resolvers.Query).toHaveProperty("userFindMany");
@@ -1536,5 +1505,712 @@ describe("DataLoader Resolver Tests", () => {
       expect(resolvers.Mutation).toHaveProperty("userUpdateMany");
       expect(resolvers.Mutation).toHaveProperty("userDeleteMany");
     });
+  });
+
+  describe("Comment Replies (Self-Referencing Relations)", () => {
+    it("should create and query comment replies with DataLoader", async () => {
+      // Create a parent comment
+      const parentCommentId = generateUlid();
+      await db.insert(comment).values({
+        id: parentCommentId,
+        text: "This is a parent comment",
+        postId: testData.postId,
+        userId: testData.userId,
+        commentId: null, // This is a top-level comment
+      });
+
+      // Create reply comments
+      const replyIds: string[] = [];
+      for (let i = 0; i < 3; i++) {
+        const replyId = generateUlid();
+        replyIds.push(replyId);
+        await db.insert(comment).values({
+          id: replyId,
+          text: `This is reply ${i + 1}`,
+          postId: testData.postId,
+          userId: testData.userId,
+          commentId: parentCommentId, // This is a reply to the parent comment
+        });
+      }
+
+      // Query the parent comment with its replies
+      const data = await executeQuery(
+        `
+        query($commentId: ID!) {
+          commentFindMany(where: { id: { eq: $commentId } }) {
+            id
+            text
+            commentId
+            replies {
+              id
+              text
+              commentId
+              user {
+                id
+                name
+              }
+              parentComment {
+                id
+                text
+              }
+            }
+            user {
+              id
+              name
+            }
+            post {
+              id
+              title
+            }
+          }
+        }
+        `,
+        { commentId: parentCommentId }
+      );
+
+      expect(data?.commentFindMany as any[]).toHaveLength(1);
+      const parentComment = (data?.commentFindMany as any[])[0];
+
+      // Verify parent comment
+      expect(parentComment.id).toBe(parentCommentId);
+      expect(parentComment.text).toBe("This is a parent comment");
+      expect(parentComment.commentId).toBeNull();
+      expect(parentComment.user).toBeDefined();
+      expect(parentComment.post).toBeDefined();
+
+      // Verify replies
+      expect(Array.isArray(parentComment.replies)).toBe(true);
+      expect(parentComment.replies.length).toBe(3);
+
+      parentComment.replies.forEach((reply: any, index: number) => {
+        expect(reply.text).toBe(`This is reply ${index + 1}`);
+        expect(reply.commentId).toBe(parentCommentId);
+        expect(reply.user).toBeDefined();
+        expect(reply.parentComment).toBeDefined();
+        expect(reply.parentComment.id).toBe(parentCommentId);
+      });
+
+      // Cleanup
+      for (const replyId of replyIds) {
+        await db.delete(comment).where(eq(comment.id, replyId));
+      }
+      await db.delete(comment).where(eq(comment.id, parentCommentId));
+    });
+
+    it("should query replies and their parent comments with DataLoader", async () => {
+      // Create a parent comment
+      const parentCommentId = generateUlid();
+      await db.insert(comment).values({
+        id: parentCommentId,
+        text: "Parent comment for reply test",
+        postId: testData.postId,
+        userId: testData.userId,
+        commentId: null,
+      });
+
+      // Create a reply
+      const replyId = generateUlid();
+      await db.insert(comment).values({
+        id: replyId,
+        text: "This is a reply",
+        postId: testData.postId,
+        userId: testData.userId,
+        commentId: parentCommentId,
+      });
+
+      // Query the reply and its parent
+      const data = await executeQuery(
+        `
+        query($replyId: ID!) {
+          commentFindMany(where: { id: { eq: $replyId } }) {
+            id
+            text
+            commentId
+            parentComment {
+              id
+              text
+              commentId
+              replies {
+                id
+                text
+              }
+            }
+            user {
+              id
+              name
+            }
+          }
+        }
+        `,
+        { replyId }
+      );
+
+      expect(data?.commentFindMany as any[]).toHaveLength(1);
+      const reply = (data?.commentFindMany as any[])[0];
+
+      // Verify reply
+      expect(reply.id).toBe(replyId);
+      expect(reply.text).toBe("This is a reply");
+      expect(reply.commentId).toBe(parentCommentId);
+
+      // Verify parent comment
+      expect(reply.parentComment).toBeDefined();
+      expect(reply.parentComment.id).toBe(parentCommentId);
+      expect(reply.parentComment.text).toBe("Parent comment for reply test");
+      expect(reply.parentComment.commentId).toBeNull();
+
+      // Verify that parent has the reply in its replies
+      expect(Array.isArray(reply.parentComment.replies)).toBe(true);
+      expect(reply.parentComment.replies.length).toBe(1);
+      expect(reply.parentComment.replies[0].id).toBe(replyId);
+
+      // Cleanup
+      await db.delete(comment).where(eq(comment.id, replyId));
+      await db.delete(comment).where(eq(comment.id, parentCommentId));
+    });
+
+    it("should handle nested replies (replies to replies) with DataLoader", async () => {
+      // Create a parent comment
+      const parentCommentId = generateUlid();
+      await db.insert(comment).values({
+        id: parentCommentId,
+        text: "Parent comment",
+        postId: testData.postId,
+        userId: testData.userId,
+        commentId: null,
+      });
+
+      // Create a first-level reply
+      const firstReplyId = generateUlid();
+      await db.insert(comment).values({
+        id: firstReplyId,
+        text: "First level reply",
+        postId: testData.postId,
+        userId: testData.userId,
+        commentId: parentCommentId,
+      });
+
+      // Create a second-level reply (reply to the first reply)
+      const secondReplyId = generateUlid();
+      await db.insert(comment).values({
+        id: secondReplyId,
+        text: "Second level reply",
+        postId: testData.postId,
+        userId: testData.userId,
+        commentId: firstReplyId,
+      });
+
+      // Query the entire thread
+      const data = await executeQuery(
+        `
+        query($parentId: ID!) {
+          commentFindMany(where: { id: { eq: $parentId } }) {
+            id
+            text
+            replies {
+              id
+              text
+              replies {
+                id
+                text
+                parentComment {
+                  id
+                  text
+                }
+              }
+            }
+          }
+        }
+        `,
+        { parentId: parentCommentId }
+      );
+
+      expect(data?.commentFindMany as any[]).toHaveLength(1);
+      const parentComment = (data?.commentFindMany as any[])[0];
+
+      // Verify parent comment
+      expect(parentComment.id).toBe(parentCommentId);
+      expect(parentComment.replies.length).toBe(1);
+
+      // Verify first-level reply
+      const firstReply = parentComment.replies[0];
+      expect(firstReply.id).toBe(firstReplyId);
+      expect(firstReply.text).toBe("First level reply");
+      expect(firstReply.replies.length).toBe(1);
+
+      // Verify second-level reply
+      const secondReply = firstReply.replies[0];
+      expect(secondReply.id).toBe(secondReplyId);
+      expect(secondReply.text).toBe("Second level reply");
+      expect(secondReply.parentComment.id).toBe(firstReplyId);
+
+      // Cleanup
+      await db.delete(comment).where(eq(comment.id, secondReplyId));
+      await db.delete(comment).where(eq(comment.id, firstReplyId));
+      await db.delete(comment).where(eq(comment.id, parentCommentId));
+    });
+
+    it("should efficiently handle posts->comments->replies query without N+1 problem", async () => {
+      // Create a comprehensive test scenario to demonstrate DataLoader efficiency
+      const testPostId = generateUlid();
+      await db.insert(post).values({
+        id: testPostId,
+        title: "Post with Complex Comment Thread",
+        content: "Testing DataLoader efficiency with nested comments",
+        authorId: testData.userId,
+      });
+
+      // Create parent comments
+      const parentCommentIds: string[] = [];
+      for (let i = 0; i < 3; i++) {
+        const parentId = generateUlid();
+        parentCommentIds.push(parentId);
+        await db.insert(comment).values({
+          id: parentId,
+          text: `Parent comment ${i + 1}`,
+          postId: testPostId,
+          userId: testData.userId,
+          commentId: null,
+        });
+
+        // Create replies for each parent comment
+        for (let j = 0; j < 2; j++) {
+          const replyId = generateUlid();
+          await db.insert(comment).values({
+            id: replyId,
+            text: `Reply ${j + 1} to parent ${i + 1}`,
+            postId: testPostId,
+            userId: testData.userId,
+            commentId: parentId,
+          });
+        }
+      }
+
+      console.log("\\n=== TESTING DATALOADER EFFICIENCY FOR POSTS->COMMENTS->REPLIES ===");
+
+      // This query will test the exact scenario you asked about:
+      // posts -> comments -> replies
+      const data = await executeQuery(
+        `
+        query($postId: ID!) {
+          postFindMany(where: { id: { eq: $postId } }) {
+            id
+            title
+            comments {
+              id
+              text
+              commentId
+              replies {
+                id
+                text
+                commentId
+                parentComment {
+                  id
+                  text
+                }
+              }
+            }
+          }
+        }
+        `,
+        { postId: testPostId }
+      );
+
+      console.log("=== QUERY COMPLETED - ANALYZING RESULTS ===\\n");
+
+      expect(data?.postFindMany as any[]).toHaveLength(1);
+      const testPost = (data?.postFindMany as any[])[0];
+
+      // Verify post structure
+      expect(testPost.id).toBe(testPostId);
+      expect(testPost.title).toBe("Post with Complex Comment Thread");
+      expect(Array.isArray(testPost.comments)).toBe(true);
+
+      // The comments array should contain ALL comments (parents + replies)
+      // because DataLoader fetches all comments for the post at once
+      expect(testPost.comments.length).toBe(9); // 3 parents + 6 replies
+
+      // Separate parent comments from replies
+      const parentComments = testPost.comments.filter((c: any) => c.commentId === null);
+      const replyComments = testPost.comments.filter((c: any) => c.commentId !== null);
+
+      expect(parentComments.length).toBe(3);
+      expect(replyComments.length).toBe(6);
+
+      // Verify that parent comments have their replies populated
+      parentComments.forEach((parent: any, index: number) => {
+        expect(parent.text).toBe(`Parent comment ${index + 1}`);
+        expect(Array.isArray(parent.replies)).toBe(true);
+        expect(parent.replies.length).toBe(2);
+
+        parent.replies.forEach((reply: any, replyIndex: number) => {
+          expect(reply.text).toBe(`Reply ${replyIndex + 1} to parent ${index + 1}`);
+          expect(reply.commentId).toBe(parent.id);
+          expect(reply.parentComment).toBeDefined();
+          expect(reply.parentComment.id).toBe(parent.id);
+        });
+      });
+
+      // Cleanup
+      await db.delete(comment).where(eq(comment.postId, testPostId));
+      await db.delete(post).where(eq(post.id, testPostId));
+    });
+
+    it("should demonstrate DataLoader batching behavior with comment relations", async () => {
+      // Create multiple posts with comments and replies to test batching
+      const testPostIds: string[] = [];
+      const allCommentIds: string[] = [];
+
+      for (let postIndex = 0; postIndex < 2; postIndex++) {
+        const postId = generateUlid();
+        testPostIds.push(postId);
+
+        await db.insert(post).values({
+          id: postId,
+          title: `Batching Test Post ${postIndex + 1}`,
+          content: `Content for post ${postIndex + 1}`,
+          authorId: testData.userId,
+        });
+
+        // Create parent comment
+        const parentId = generateUlid();
+        allCommentIds.push(parentId);
+        await db.insert(comment).values({
+          id: parentId,
+          text: `Parent comment for post ${postIndex + 1}`,
+          postId: postId,
+          userId: testData.userId,
+          commentId: null,
+        });
+
+        // Create replies
+        for (let replyIndex = 0; replyIndex < 2; replyIndex++) {
+          const replyId = generateUlid();
+          allCommentIds.push(replyId);
+          await db.insert(comment).values({
+            id: replyId,
+            text: `Reply ${replyIndex + 1} for post ${postIndex + 1}`,
+            postId: postId,
+            userId: testData.userId,
+            commentId: parentId,
+          });
+        }
+      }
+
+      console.log("\\n=== TESTING DATALOADER BATCHING WITH MULTIPLE POSTS ===");
+
+      // Query multiple posts at once to see DataLoader batching in action
+      const data = await executeQuery(
+        `
+        query {
+          postFindMany(where: { title: { like: "Batching Test%" } }) {
+            id
+            title
+            comments {
+              id
+              text
+              commentId
+              replies {
+                id
+                text
+                user {
+                  id
+                  name
+                }
+              }
+              parentComment {
+                id
+                text
+              }
+            }
+          }
+        }
+      `);
+
+      console.log("=== BATCHING QUERY COMPLETED ===\\n");
+
+      expect(data?.postFindMany as any[]).toHaveLength(2);
+      const posts = data?.postFindMany as any[];
+
+      posts.forEach((post: any, postIndex: number) => {
+        expect(post.title).toBe(`Batching Test Post ${postIndex + 1}`);
+        expect(post.comments.length).toBe(3); // 1 parent + 2 replies
+
+        const parentComment = post.comments.find((c: any) => c.commentId === null);
+        const replies = post.comments.filter((c: any) => c.commentId !== null);
+
+        expect(parentComment).toBeDefined();
+        expect(replies.length).toBe(2);
+        expect(parentComment.replies.length).toBe(2);
+
+        // Verify that replies have parentComment populated
+        replies.forEach((reply: any) => {
+          expect(reply.parentComment).toBeDefined();
+          expect(reply.parentComment.id).toBe(parentComment.id);
+        });
+      });
+
+      // Cleanup - delete replies first, then parents to avoid foreign key constraints
+      await db.delete(comment).where(eq(comment.postId, testPostIds[0]));
+      await db.delete(comment).where(eq(comment.postId, testPostIds[1]));
+      for (const postId of testPostIds) {
+        await db.delete(post).where(eq(post.id, postId));
+      }
+    });
+  });
+
+  describe("Query Optimization with @populateFromParent", () => {
+    it("should use @populateFromParent directive to optimize queries", async () => {
+      // Create test data
+      const testPostId = generateUlid();
+      await db.insert(post).values({
+        id: testPostId,
+        title: "Post with Optimized Replies",
+        content: "Testing @populateFromParent directive",
+        authorId: testData.userId,
+      });
+
+      const parentCommentId = generateUlid();
+      await db.insert(comment).values({
+        id: parentCommentId,
+        text: "Parent comment",
+        postId: testPostId,
+        userId: testData.userId,
+        commentId: null,
+      });
+
+      // Create replies
+      for (let i = 0; i < 3; i++) {
+        const replyId = generateUlid();
+        await db.insert(comment).values({
+          id: replyId,
+          text: `Reply ${i + 1}`,
+          postId: testPostId,
+          userId: testData.userId,
+          commentId: parentCommentId,
+        });
+      }
+
+      console.log("\\n=== TESTING @populateFromParent DIRECTIVE ===");
+      console.log("Expected: 2 queries (posts + comments), replies populated from parent data");
+
+      // Query with @populateFromParent directive
+      const data = await executeQuery(
+        `
+        query($postId: ID!) {
+          postFindMany(where: { id: { eq: $postId } }) {
+            id
+            title
+            comments {
+              id
+              text
+              commentId
+              
+              # This should use parent data instead of new DB query
+              replies @populateFromParent(source: "comments", filter: { commentId: { eq: "$parent.id" } }) {
+                id
+                text
+                commentId
+              }
+            }
+          }
+        }
+        `,
+        { postId: testPostId }
+      );
+
+      console.log("=== DIRECTIVE QUERY COMPLETED ===");
+      console.log("Check console output above - should see '⚡ Using parent data' messages");
+
+      expect(data?.postFindMany as any[]).toHaveLength(1);
+      const testPost = (data?.postFindMany as any[])[0];
+
+      // Verify structure
+      expect(testPost.comments.length).toBe(4); // 1 parent + 3 replies
+
+      const parentComment = testPost.comments.find((c: any) => c.commentId === null);
+      expect(parentComment).toBeDefined();
+      expect(parentComment.replies.length).toBe(3);
+
+      // Cleanup
+      await db.delete(comment).where(eq(comment.postId, testPostId));
+      await db.delete(post).where(eq(post.id, testPostId));
+    });
+
+    it("should fallback to fresh query when complex filtering is needed", async () => {
+      // Create test data with timestamps
+      const testPostId = generateUlid();
+      await db.insert(post).values({
+        id: testPostId,
+        title: "Post with Time-based Filtering",
+        content: "Testing fallback to fresh queries",
+        authorId: testData.userId,
+      });
+
+      const parentCommentId = generateUlid();
+      await db.insert(comment).values({
+        id: parentCommentId,
+        text: "Parent comment",
+        postId: testPostId,
+        userId: testData.userId,
+        commentId: null,
+      });
+
+      console.log("\\n=== TESTING FALLBACK TO FRESH QUERY ===");
+      console.log("Expected: 3 queries (posts + comments + filtered replies)");
+
+      // Query with complex WHERE clause - should trigger fresh DB query
+      const data = await executeQuery(
+        `
+        query($postId: ID!) {
+          postFindMany(where: { id: { eq: $postId } }) {
+            id
+            title
+            comments {
+              id
+              text
+              replies {
+                id
+                text
+              }
+            }
+          }
+        }
+        `,
+        { postId: testPostId }
+      );
+
+      console.log("=== FALLBACK QUERY COMPLETED ===");
+      console.log("Query result:", JSON.stringify(data, null, 2));
+      console.log("Check console output above - should see '🔄 Using fresh query' messages");
+
+      expect(data?.postFindMany as any[]).toHaveLength(1);
+
+      // Cleanup
+      await db.delete(comment).where(eq(comment.postId, testPostId));
+      await db.delete(post).where(eq(post.id, testPostId));
+    });
+  });
+});
+
+describe("Explicit Schema Creation", () => {
+  it("should create schema with explicit control over typeDefs", async () => {
+    // Import the individual components for explicit control
+    const {
+      buildSchemaSDL,
+      populateFromParentDirectiveTypeDefs,
+      exportDirectiveTypeDefs,
+      commonScalars,
+      makeExecutableSchema,
+      populateFromParentDirectiveTransformer
+    } = await import("../index");
+
+    // 1. Generate basic schema
+    const { typeDefs, resolvers } = buildSchemaSDL(db);
+
+    // 2. Create executable schema with explicit typeDefs array
+    let executableSchema = makeExecutableSchema({
+      typeDefs: [
+        populateFromParentDirectiveTypeDefs,
+        exportDirectiveTypeDefs,
+        `enum ReactionType { LIKE DISLIKE }`,
+        typeDefs
+      ],
+      resolvers: { ...resolvers, ...commonScalars },
+    });
+
+    // 3. Apply directive transformers explicitly
+    const schema = populateFromParentDirectiveTransformer(executableSchema);
+
+    expect(schema).toBeDefined();
+    expect(schema.getTypeMap()).toBeDefined();
+
+    // Check that both directives are included
+    const directiveNames = schema.getDirectives().map(d => d.name);
+    expect(directiveNames).toContain("populateFromParent");
+    expect(directiveNames).toContain("export");
+
+    // Test a simple query
+    const query = `
+      query {
+        userFindMany {
+          id
+          name
+          email
+        }
+      }
+    `;
+
+    const result = await graphql({
+      schema,
+      source: query,
+      contextValue: createDataLoaderContext(db),
+    });
+
+    expect(result.errors).toBeUndefined();
+    expect(result.data?.userFindMany).toBeDefined();
+  });
+
+  it("should work with custom scalars and explicit typeDefs order", async () => {
+    const {
+      buildSchemaSDL,
+      populateFromParentDirectiveTypeDefs,
+      exportDirectiveTypeDefs,
+      commonScalars,
+      makeExecutableSchema,
+      populateFromParentDirectiveTransformer
+    } = await import("../index");
+
+    const { typeDefs, resolvers } = buildSchemaSDL(db);
+
+    const schema = populateFromParentDirectiveTransformer(
+      makeExecutableSchema({
+        typeDefs: [
+          populateFromParentDirectiveTypeDefs,
+          exportDirectiveTypeDefs,
+          `enum ReactionType { LIKE DISLIKE }`,
+          `scalar DateTime`,
+          `enum Status { ACTIVE INACTIVE }`,
+          typeDefs
+        ],
+        resolvers: {
+          ...resolvers,
+          ...commonScalars,
+          DateTime: {
+            serialize: (value: any) => value?.toISOString?.() || value,
+            parseValue: (value: any) => new Date(value),
+            parseLiteral: (ast: any) => new Date(ast.value),
+          },
+        },
+      })
+    );
+
+    expect(schema).toBeDefined();
+
+    // Check that custom types are included
+    expect(schema.getType("DateTime")).toBeDefined();
+    expect(schema.getType("Status")).toBeDefined();
+    expect(schema.getType("ReactionType")).toBeDefined();
+
+    // Check that both directives are included
+    const directiveNames = schema.getDirectives().map(d => d.name);
+    expect(directiveNames).toContain("populateFromParent");
+    expect(directiveNames).toContain("export");
+  });
+
+  it("should demonstrate shared standard configuration benefits", () => {
+    // Test that we can create multiple schemas with the same standard config
+    const schema1 = createStandardSchema(db);
+    const schema2 = createStandardSchema(db);
+    
+    expect(schema1.schema).toBeDefined();
+    expect(schema2.schema).toBeDefined();
+    expect(schema1.fullTypeDefs).toBe(schema2.fullTypeDefs); // Same typeDefs
+    
+    // Verify standard configuration includes what we expect
+    const directiveNames = schema1.schema.getDirectives().map(d => d.name);
+    expect(directiveNames).toContain("populateFromParent");
+    expect(directiveNames).toContain("export");
+    expect(schema1.schema.getType("ReactionType")).toBeDefined();
   });
 });

@@ -9,6 +9,11 @@ import {
 } from "./generator/schema";
 import { generateQueries } from "./generator/queries";
 import { generateMutations } from "./generator/mutations";
+import { addPopulateFromParentDirective, populateFromParentDirectiveTypeDefs } from "./directives/directive-definitions";
+import { populateFromParentDirectiveTransformer } from "./directives/cached";
+import { GraphQLJSON } from "./scalars/json";
+import type { GraphQLSchema } from "graphql";
+import { exportDirectiveTypeDefs } from "../export-tool/directive-definitions";
 
 export type Capitalize<S extends string> = S extends `${infer F}${infer R}`
     ? `${Uppercase<F>}${R}`
@@ -175,20 +180,33 @@ export const buildSchemaSDL = <
         relations
     );
 
+    const resolvers = {
+        Query: queries,
+        Mutation: mutations,
+        ...deleteResultResolvers,
+    } as BuildSchemaSDLResult<TSchema>["resolvers"];
+
     return {
         typeDefs,
-        resolvers: {
-            Query: queries,
-            Mutation: mutations,
-            ...deleteResultResolvers,
-        } as BuildSchemaSDLResult<TSchema>["resolvers"],
+        resolvers,
     };
 };
 
-// Export the main function
-// export const buildSchemaSDL = buildSchemaSDLWithDataLoader; // Removed alias
 
-// Re-export DataLoader utilities
-export * from './generator/utils/dataloader';
-export * from './generator/utils/context';
-export * from './generator/utils/envelop-plugin';
+
+// Export commonly used scalars
+export const commonScalars = {
+    JSON: GraphQLJSON,
+};
+
+// Export individual directive typeDefs
+export { populateFromParentDirectiveTypeDefs } from './directives/directive-definitions';
+export { exportDirectiveTypeDefs } from '../export-tool/directive-definitions';
+
+// Re-export makeExecutableSchema for user convenience
+export { makeExecutableSchema } from "@graphql-tools/schema";
+
+// Re-export directive transformers for explicit composition
+export { populateFromParentDirectiveTransformer } from './directives/cached';
+export { addPopulateFromParentDirective } from './directives/directive-definitions';
+export { GraphQLJSON } from './scalars/json';

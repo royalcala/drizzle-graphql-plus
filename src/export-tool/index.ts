@@ -32,3 +32,4 @@ export * from "./ExportStore";
 export * from "./middleware";
 export * from "./utils";
 export * from "./makeScalarAcceptExports";
+export * from "./directive-definitions";

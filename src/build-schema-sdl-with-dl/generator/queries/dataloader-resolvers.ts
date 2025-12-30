@@ -178,6 +178,23 @@ async function loadRelationsWithDataLoader(
         return mainResults;
     }
 
+    // Initialize all relation fields to empty arrays/null first
+    for (const mainResult of mainResults) {
+        for (const [relName, { relation }] of Object.entries(tableRelations)) {
+            const relationField = fields[relName];
+            if (!relationField) continue;
+
+            // Initialize based on relation type
+            if (is(relation, One)) {
+                // One-to-one relations: initialize to null
+                mainResult[relName] = null;
+            } else {
+                // One-to-many relations: initialize to empty array
+                mainResult[relName] = [];
+            }
+        }
+    }
+
     // Extract primary key values for batching
     const primaryKeyColumn = Object.values(tableInfo.columns).find(col => (col as any).primary);
     if (!primaryKeyColumn) {

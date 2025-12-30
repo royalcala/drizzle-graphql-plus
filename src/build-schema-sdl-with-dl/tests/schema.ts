@@ -42,6 +42,7 @@ export const comment = sqliteTable("comment", {
   userId: text("user_id")
     .notNull()
     .references(() => user.id),
+  commentId: text("comment_id").references(() => comment.id), // Self-reference for replies
 });
 
 export type ReactionTypes = "LIKE" | "DISLIKE";
@@ -133,6 +134,15 @@ export const commentRelations = relations(comment, ({ one, many }) => ({
     references: [user.id],
   }),
   reactions: many(reaction),
+  // Self-referencing relations for replies
+  parentComment: one(comment, {
+    fields: [comment.commentId],
+    references: [comment.id],
+    relationName: "CommentReplies",
+  }),
+  replies: many(comment, {
+    relationName: "CommentReplies",
+  }),
 }));
 
 export const reactionRelations = relations(reaction, ({ one }) => ({

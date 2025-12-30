@@ -1,14 +1,13 @@
 import { createServer } from "node:http";
 import { createYoga, useEnvelop } from "graphql-yoga";
 import { envelop, useEngine, useSchema } from '@envelop/core';
-import { GraphQLSchema, execute, subscribe } from 'graphql';
+import { execute, subscribe } from 'graphql';
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
-import { buildSchemaSDL, useDataLoaderCleanup } from "../index";
 import * as schema from "./schema";
-import { makeExecutableSchema } from "@graphql-tools/schema";
 import { writeFileSync } from "node:fs";
-import { GraphQLULID } from "graphql-scalars";
+import { createDataLoaderContext, cleanupDataLoaderContext } from "../generator/utils/context";
+import { createStandardSchema } from "./shared-config";
 
 // Create LibSQL client
 const client = createClient({
@@ -18,57 +17,31 @@ const client = createClient({
 // Create Drizzle instance
 const db = drizzle(client, { schema });
 
-import {
-  createExportMiddleware,
-  makeScalarAcceptExports,
-} from "../../../src/export-tool";
-import { composeResolvers } from "@graphql-tools/resolvers-composition";
+// ===== USE SHARED STANDARD SCHEMA CONFIGURATION =====
+const { schema: graphqlSchema, fullTypeDefs } = createStandardSchema(db);
 
-// Build GraphQL schema with DataLoader always enabled
-const { typeDefs, resolvers } = buildSchemaSDL(db);
+// Export the schema for external use
+export { graphqlSchema };
 
-// Add custom scalar/enum definitions for types marked with customGraphqlType
-const customTypeDefinitions = `
-directive @export(as: String!) on FIELD
- enum ReactionType {
-    LIKE
-    DISLIKE
-  }
-`;
+// Write the schema to file for inspection
+writeFileSync("src/build-schema-sdl-with-dl/tests/auto-generated-schema.graphql", fullTypeDefs);
 
-const extendedTypeDefs = customTypeDefinitions + "\n" + typeDefs;
-
-GraphQLULID.name = "ID";
-// Add scalar resolvers for custom types
-// Use makeScalarAcceptExports to allow export patterns
-const FlexibleULID = makeScalarAcceptExports(GraphQLULID);
-const customScalarResolvers = {
-  ID: FlexibleULID,
-};
-
-const resolversWithScalars = {
-  ...resolvers,
-  ...customScalarResolvers,
-};
-
-// Compose resolvers with export middleware
-const composedResolvers = composeResolvers(resolversWithScalars, {
-  "*.*": [createExportMiddleware()],
-});
-
-export const graphqlSchema = makeExecutableSchema({
-  typeDefs: extendedTypeDefs,
-  resolvers: composedResolvers,
-});
-
-writeFileSync("src/build-schema-sdl-with-dl/tests/auto-generated-schema.graphql", extendedTypeDefs);
-
-// Create Envelop instance with comprehensive DataLoader plugin
+// Create Envelop instance with explicit DataLoader context management
 const getEnveloped = envelop({
   plugins: [
     useEngine({ execute, subscribe }),
     useSchema(graphqlSchema),
-    useDataLoaderCleanup({ db }), // Handles context creation, db injection, AND cleanup automatically
+    // Custom plugin for DataLoader context management
+    {
+      onContextBuilding: ({ extendContext }) => {
+        // Create DataLoader context for this request
+        const dataLoaderContext = createDataLoaderContext();
+        extendContext({
+          db, // Inject database instance
+          ...dataLoaderContext, // Inject DataLoader context
+        });
+      },
+    },
   ],
 });
 
@@ -76,14 +49,14 @@ const getEnveloped = envelop({
 const yoga = createYoga({
   plugins: [useEnvelop(getEnveloped)],
   graphiql: {
-    title: "Drizzle-GraphQL DataLoader Test Server",
+    title: "Drizzle-GraphQL DataLoader Test Server - Explicit Composition",
   },
   context: async ({ request }) => {
-    // DataLoader context AND database are automatically injected by the plugin!
-    // Just add your other context properties
+    // DataLoader context and database are injected by the Envelop plugin
+    // Just add your other context properties here
     return {
       request,
-      // db and relationLoaders are added automatically by the plugin
+      // db and DataLoader context are added automatically by the plugin
     };
   },
 });
@@ -96,5 +69,6 @@ const PORT = 4001; // Different port to avoid conflicts
 server.listen(PORT, async () => {
   console.log(`🚀 DataLoader Test Server ready at http://localhost:${PORT}/graphql`);
   console.log(`📊 GraphiQL interface available for testing DataLoader performance`);
-  console.log(`🔄 DataLoader is enabled for optimized relational queries`);
+  console.log(`🔄 DataLoader is enabled with SHARED STANDARD composition - simple and consistent!`);
+  console.log(`✨ Schema built using standard shared configuration`);
 });

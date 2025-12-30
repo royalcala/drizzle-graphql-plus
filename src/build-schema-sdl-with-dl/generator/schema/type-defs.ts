@@ -390,6 +390,9 @@ export const generateTypeDefs = (
   // Build final SDL with all definitions
   const allDefs: string[] = [];
 
+  // Always add JSON scalar since it's commonly used and included in commonScalars
+  customScalars.add("JSON");
+
   // Add custom scalars
   if (customScalars.size > 0) {
     for (const scalarName of Array.from(customScalars).sort()) {
