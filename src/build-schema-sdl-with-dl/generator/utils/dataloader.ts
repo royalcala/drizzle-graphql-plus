@@ -48,11 +48,7 @@ export class RelationDataLoader {
   private getOrCreateLoader(loaderKey: string): DataLoader<RelationLoaderKey, RelationLoaderResult[]> {
     if (!this.loaders.has(loaderKey)) {
       const loader = new DataLoader<RelationLoaderKey, RelationLoaderResult[]>(
-        async (keys) => this.batchLoadRelations(keys),
-        {
-          // Cache key function to group similar requests
-          cacheKeyFn: (key) => this.createLoaderKey(key),
-        }
+        async (keys) => this.batchLoadRelations(keys)
       );
       this.loaders.set(loaderKey, loader);
     }
@@ -76,6 +72,10 @@ export class RelationDataLoader {
     // Process each group
     for (const [configKey, groupKeys] of Array.from(groupedKeys)) {
       const firstKey = groupKeys[0];
+      if (!firstKey) {
+        // If no keys in group, skip
+        continue;
+      }
       
       // Collect all parent IDs from this group
       const allParentIds = groupKeys.flatMap(key => key.parentIds);
@@ -84,9 +84,9 @@ export class RelationDataLoader {
       // Build the query
       const whereClause = this.buildBatchWhereClause(
         uniqueParentIds, 
-        firstKey.where, 
         firstKey.isReversedRelation, 
-        firstKey.foreignKey
+        firstKey.foreignKey,
+        firstKey.where
       );
       if (!whereClause) {
         // If we can't build a where clause, return empty results
@@ -114,7 +114,7 @@ export class RelationDataLoader {
       const resultsByParentId = new Map<any, any[]>();
       for (const result of batchResults) {
         // The parent ID is always the value of the foreign key column in the result
-        const parentId = result[firstKey.foreignKey];
+        const parentId = (result as any)[firstKey.foreignKey];
         
         if (!resultsByParentId.has(parentId)) {
           resultsByParentId.set(parentId, []);
@@ -137,9 +137,9 @@ export class RelationDataLoader {
 
   private buildBatchWhereClause(
     parentIds: any[],
-    additionalWhere?: WhereInput,
     isReversedRelation: boolean,
-    foreignKeyName: string
+    foreignKeyName: string,
+    additionalWhere?: WhereInput
   ): SQL | undefined {
     const foreignKeyColumn = this.tableInfo.columns[foreignKeyName];
     if (!foreignKeyColumn) {
