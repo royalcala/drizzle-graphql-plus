@@ -657,6 +657,128 @@ describe("Resolver Tests", () => {
       await db.delete(post).where(eq(post.id, testPostId));
       await db.delete(user).where(eq(user.id, testUserId));
     });
+
+    it("should delete reaction and verify comment reactions array becomes empty", async () => {
+      // Create test data: user, post, comment, and reaction
+      const testUserId = generateUlid();
+      const testPostId = generateUlid();
+      const testCommentId = generateUlid();
+      const testReactionId = generateUlid();
+
+      await db.insert(user).values({
+        id: testUserId,
+        name: "Reaction Test User",
+        email: "reactiontest@example.com",
+      });
+
+      await db.insert(post).values({
+        id: testPostId,
+        title: "Post with Reaction",
+        content: "This post will have a reaction that gets deleted",
+        authorId: testUserId,
+      });
+
+      await db.insert(comment).values({
+        id: testCommentId,
+        text: "Comment with reaction",
+        postId: testPostId,
+        userId: testUserId,
+      });
+
+      await db.insert(reaction).values({
+        id: testReactionId,
+        commentId: testCommentId,
+        userId: testUserId,
+        type: "LIKE",
+      });
+
+      // Delete the reaction and query comment reactions through reactionFindMany
+      const deleteData = await executeQuery(
+        `
+        mutation($where: ReactionFilters!) {
+          reactionDeleteMany(where: $where) {
+            deletedItems {
+              id
+            }
+            reactionFindMany {
+              comment {
+                reactions {
+                  id
+                  type
+                }
+              }
+            }
+          }
+        }
+        `,
+        { where: { id: { eq: testReactionId } } }
+      );
+
+      // Verify the reaction was deleted
+      expect(deleteData?.reactionDeleteMany?.deletedItems as any[]).toHaveLength(1);
+      expect((deleteData?.reactionDeleteMany?.deletedItems as any[])[0].id).toBe(testReactionId);
+
+      // The key test: what does comment.reactions return after deleting the last reaction?
+      const remainingReactions = deleteData?.reactionDeleteMany?.reactionFindMany as any[];
+      console.log("Remaining reactions after deletion:", JSON.stringify(remainingReactions, null, 2));
+
+      // Check if our specific reaction was actually deleted
+      const hasOurReaction = remainingReactions.some((item: any) =>
+        item.comment?.reactions?.some((r: any) => r.id === testReactionId)
+      );
+
+      console.log(`Our reaction ${testReactionId} still exists:`, hasOurReaction);
+
+      // The reaction should be deleted, so it shouldn't exist in the results
+      expect(hasOurReaction).toBe(false);
+
+      // If there are remaining reactions, they should be from other comments
+      // Let's check if any reactions belong to our specific comment
+      const reactionsForOurComment = remainingReactions.filter((item: any) =>
+        item.comment?.reactions?.length > 0
+      );
+
+      console.log("Reactions for comments:", reactionsForOurComment.length);
+
+      // Now let's directly query the comment to see what its reactions array looks like
+      const afterData = await executeQuery(
+        `
+        query($commentId: ID!) {
+          commentFindMany(where: { id: { eq: $commentId } }) {
+            id
+            reactions {
+              id
+              type
+            }
+          }
+        }
+        `,
+        { commentId: testCommentId }
+      );
+
+      expect(afterData?.commentFindMany as any[]).toHaveLength(1);
+      const commentAfter = (afterData?.commentFindMany as any[])[0];
+
+      console.log("Comment reactions after deletion:", JSON.stringify(commentAfter.reactions, null, 2));
+      console.log("Is reactions null?", commentAfter.reactions === null);
+      console.log("Is reactions an array?", Array.isArray(commentAfter.reactions));
+      console.log("Reactions length:", commentAfter.reactions?.length);
+
+      // This is the critical test: is it null or empty array?
+      if (commentAfter.reactions === null) {
+        console.log("❌ ISSUE FOUND: comment.reactions is NULL instead of empty array");
+        expect(commentAfter.reactions).not.toBe(null); // This should fail if it's null
+      } else {
+        console.log("✅ GOOD: comment.reactions is not null");
+        expect(Array.isArray(commentAfter.reactions)).toBe(true);
+        expect(commentAfter.reactions).toHaveLength(0);
+      }
+
+      // Cleanup
+      await db.delete(comment).where(eq(comment.id, testCommentId));
+      await db.delete(post).where(eq(post.id, testPostId));
+      await db.delete(user).where(eq(user.id, testUserId));
+    });
   });
 
   describe("Type Safety Tests", () => {

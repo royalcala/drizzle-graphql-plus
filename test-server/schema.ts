@@ -123,13 +123,25 @@ export const postRelations = relations(post, ({ one, many }) => ({
   }),
 }));
 
-export const commentRelations = relations(comment, ({ one }) => ({
+export const commentRelations = relations(comment, ({ one, many }) => ({
   post: one(post, {
     fields: [comment.postId],
     references: [post.id],
   }),
   user: one(user, {
     fields: [comment.userId],
+    references: [user.id],
+  }),
+  reactions: many(reaction),
+}));
+
+export const reactionRelations = relations(reaction, ({ one }) => ({
+  comment: one(comment, {
+    fields: [reaction.commentId],
+    references: [comment.id],
+  }),
+  user: one(user, {
+    fields: [reaction.userId],
     references: [user.id],
   }),
 }));
