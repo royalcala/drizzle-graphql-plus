@@ -8,6 +8,7 @@ export default defineConfig({
       "tests/**/*.test.ts",
       "test-server/**/*.test.ts",
       "src/export-tool/**/*.test.ts",
+      "src/build-schema-sdl-with-dl/**/*.test.ts"
     ],
     isolate: true,
     typecheck: {

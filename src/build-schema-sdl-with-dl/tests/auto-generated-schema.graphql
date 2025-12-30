@@ -1,0 +1,448 @@
+
+directive @export(as: String!) on FIELD
+ enum ReactionType {
+    LIKE
+    DISLIKE
+  }
+
+scalar Date
+
+enum OrderByDirection {
+  asc
+  desc
+}
+
+type DeletedItem {
+  id: ID!
+}
+
+input InnerOrder {
+  direction: OrderByDirection!
+  priority: Int!
+}
+
+input IDFieldFilter {
+  eq: ID
+  ne: ID
+  lt: ID
+  lte: ID
+  gt: ID
+  gte: ID
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [ID!]
+  notInArray: [ID!]
+  isNull: Boolean
+  isNotNull: Boolean
+  OR: [IDFieldFilter!]
+}
+
+input StringFieldFilter {
+  eq: String
+  ne: String
+  lt: String
+  lte: String
+  gt: String
+  gte: String
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [String!]
+  notInArray: [String!]
+  isNull: Boolean
+  isNotNull: Boolean
+  OR: [StringFieldFilter!]
+}
+
+input DateFieldFilter {
+  eq: Date
+  ne: Date
+  lt: Date
+  lte: Date
+  gt: Date
+  gte: Date
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [Date!]
+  notInArray: [Date!]
+  isNull: Boolean
+  isNotNull: Boolean
+  OR: [DateFieldFilter!]
+}
+
+input ReactionTypeFieldFilter {
+  eq: ReactionType
+  ne: ReactionType
+  lt: ReactionType
+  lte: ReactionType
+  gt: ReactionType
+  gte: ReactionType
+  like: String
+  notLike: String
+  ilike: String
+  notIlike: String
+  inArray: [ReactionType!]
+  notInArray: [ReactionType!]
+  isNull: Boolean
+  isNotNull: Boolean
+  OR: [ReactionTypeFieldFilter!]
+}
+
+type City {
+  id: ID!
+  name: String!
+  slug: String!
+  posts(where: PostFilters, orderBy: PostOrderBy, limit: Int, offset: Int): [Post!]!
+}
+
+input CityInsertInput {
+  id: ID
+  name: String!
+  slug: String!
+}
+
+input CityUpdateInput {
+  id: ID
+  name: String
+  slug: String
+}
+
+input CityFilters {
+  id: IDFieldFilter
+  name: StringFieldFilter
+  slug: StringFieldFilter
+  OR: [CityFilters!]
+}
+
+input CityOrderBy {
+  id: InnerOrder
+  name: InnerOrder
+  slug: InnerOrder
+}
+
+type CityDeleteResult {
+  deletedItems: [DeletedItem!]!
+  cityFindMany(where: CityFilters, orderBy: CityOrderBy, limit: Int, offset: Int): [City!]!
+}
+
+type Comment {
+  id: ID!
+  text: String!
+  postId: ID!
+  userId: ID!
+  post(where: PostFilters): Post
+  user(where: UserFilters): User
+  reactions(where: ReactionFilters, orderBy: ReactionOrderBy, limit: Int, offset: Int): [Reaction!]!
+}
+
+input CommentInsertInput {
+  id: ID
+  text: String!
+  postId: ID!
+  userId: ID!
+}
+
+input CommentUpdateInput {
+  id: ID
+  text: String
+  postId: ID
+  userId: ID
+}
+
+input CommentFilters {
+  id: IDFieldFilter
+  text: StringFieldFilter
+  postId: IDFieldFilter
+  userId: IDFieldFilter
+  OR: [CommentFilters!]
+}
+
+input CommentOrderBy {
+  id: InnerOrder
+  text: InnerOrder
+  postId: InnerOrder
+  userId: InnerOrder
+}
+
+type CommentDeleteResult {
+  deletedItems: [DeletedItem!]!
+  commentFindMany(where: CommentFilters, orderBy: CommentOrderBy, limit: Int, offset: Int): [Comment!]!
+}
+
+type Post {
+  id: ID!
+  title: String!
+  content: String!
+  authorId: ID!
+  name: String
+  cityId: ID
+  sportId: ID
+  createdAt: Date!
+  author(where: UserFilters): User
+  comments(where: CommentFilters, orderBy: CommentOrderBy, limit: Int, offset: Int): [Comment!]!
+  city(where: CityFilters): City
+  sport(where: SportFilters): Sport
+}
+
+input PostInsertInput {
+  id: ID
+  title: String!
+  content: String!
+  authorId: ID!
+  name: String
+  cityId: ID
+  sportId: ID
+  createdAt: Date
+}
+
+input PostUpdateInput {
+  id: ID
+  title: String
+  content: String
+  authorId: ID
+  name: String
+  cityId: ID
+  sportId: ID
+  createdAt: Date
+}
+
+input PostFilters {
+  id: IDFieldFilter
+  title: StringFieldFilter
+  content: StringFieldFilter
+  authorId: IDFieldFilter
+  name: StringFieldFilter
+  cityId: IDFieldFilter
+  sportId: IDFieldFilter
+  createdAt: DateFieldFilter
+  OR: [PostFilters!]
+}
+
+input PostOrderBy {
+  id: InnerOrder
+  title: InnerOrder
+  content: InnerOrder
+  authorId: InnerOrder
+  name: InnerOrder
+  cityId: InnerOrder
+  sportId: InnerOrder
+  createdAt: InnerOrder
+}
+
+type PostDeleteResult {
+  deletedItems: [DeletedItem!]!
+  postFindMany(where: PostFilters, orderBy: PostOrderBy, limit: Int, offset: Int): [Post!]!
+}
+
+type Reaction {
+  id: ID!
+  commentId: ID!
+  userId: ID!
+  """Type of reaction: LIKE or DISLIKE"""
+  type: ReactionType!
+  comment(where: CommentFilters): Comment
+  user(where: UserFilters): User
+}
+
+input ReactionInsertInput {
+  id: ID
+  commentId: ID!
+  userId: ID!
+  type: ReactionType!
+}
+
+input ReactionUpdateInput {
+  id: ID
+  commentId: ID
+  userId: ID
+  type: ReactionType
+}
+
+input ReactionFilters {
+  id: IDFieldFilter
+  commentId: IDFieldFilter
+  userId: IDFieldFilter
+  type: ReactionTypeFieldFilter
+  OR: [ReactionFilters!]
+}
+
+input ReactionOrderBy {
+  id: InnerOrder
+  commentId: InnerOrder
+  userId: InnerOrder
+  type: InnerOrder
+}
+
+type ReactionDeleteResult {
+  deletedItems: [DeletedItem!]!
+  reactionFindMany(where: ReactionFilters, orderBy: ReactionOrderBy, limit: Int, offset: Int): [Reaction!]!
+}
+
+type Sport {
+  id: ID!
+  name: String!
+  posts(where: PostFilters, orderBy: PostOrderBy, limit: Int, offset: Int): [Post!]!
+}
+
+input SportInsertInput {
+  id: ID
+  name: String!
+}
+
+input SportUpdateInput {
+  id: ID
+  name: String
+}
+
+input SportFilters {
+  id: IDFieldFilter
+  name: StringFieldFilter
+  OR: [SportFilters!]
+}
+
+input SportOrderBy {
+  id: InnerOrder
+  name: InnerOrder
+}
+
+type SportDeleteResult {
+  deletedItems: [DeletedItem!]!
+  sportFindMany(where: SportFilters, orderBy: SportOrderBy, limit: Int, offset: Int): [Sport!]!
+}
+
+type User {
+  id: ID!
+  name: String!
+  email: String!
+  bio: String
+  posts(where: PostFilters, orderBy: PostOrderBy, limit: Int, offset: Int): [Post!]!
+  comments(where: CommentFilters, orderBy: CommentOrderBy, limit: Int, offset: Int): [Comment!]!
+  profile(where: UserProfileFilters): UserProfile
+}
+
+input UserInsertInput {
+  id: ID
+  name: String!
+  email: String!
+  bio: String
+}
+
+input UserUpdateInput {
+  id: ID
+  name: String
+  email: String
+  bio: String
+}
+
+input UserFilters {
+  id: IDFieldFilter
+  name: StringFieldFilter
+  email: StringFieldFilter
+  bio: StringFieldFilter
+  OR: [UserFilters!]
+}
+
+input UserOrderBy {
+  id: InnerOrder
+  name: InnerOrder
+  email: InnerOrder
+  bio: InnerOrder
+}
+
+type UserDeleteResult {
+  deletedItems: [DeletedItem!]!
+  userFindMany(where: UserFilters, orderBy: UserOrderBy, limit: Int, offset: Int): [User!]!
+}
+
+type UserProfile {
+  id: ID!
+  userId: ID!
+  bio: String
+  avatarUrl: String
+  website: String
+  user(where: UserFilters): User
+}
+
+input UserProfileInsertInput {
+  id: ID
+  userId: ID!
+  bio: String
+  avatarUrl: String
+  website: String
+}
+
+input UserProfileUpdateInput {
+  id: ID
+  userId: ID
+  bio: String
+  avatarUrl: String
+  website: String
+}
+
+input UserProfileFilters {
+  id: IDFieldFilter
+  userId: IDFieldFilter
+  bio: StringFieldFilter
+  avatarUrl: StringFieldFilter
+  website: StringFieldFilter
+  OR: [UserProfileFilters!]
+}
+
+input UserProfileOrderBy {
+  id: InnerOrder
+  userId: InnerOrder
+  bio: InnerOrder
+  avatarUrl: InnerOrder
+  website: InnerOrder
+}
+
+type UserProfileDeleteResult {
+  deletedItems: [DeletedItem!]!
+  userProfileFindMany(where: UserProfileFilters, orderBy: UserProfileOrderBy, limit: Int, offset: Int): [UserProfile!]!
+}
+
+type Query {
+  cityFindMany(where: CityFilters, orderBy: CityOrderBy, limit: Int, offset: Int): [City!]!
+  cityFindFirst(where: CityFilters, orderBy: CityOrderBy): City
+  commentFindMany(where: CommentFilters, orderBy: CommentOrderBy, limit: Int, offset: Int): [Comment!]!
+  commentFindFirst(where: CommentFilters, orderBy: CommentOrderBy): Comment
+  postFindMany(where: PostFilters, orderBy: PostOrderBy, limit: Int, offset: Int): [Post!]!
+  postFindFirst(where: PostFilters, orderBy: PostOrderBy): Post
+  reactionFindMany(where: ReactionFilters, orderBy: ReactionOrderBy, limit: Int, offset: Int): [Reaction!]!
+  reactionFindFirst(where: ReactionFilters, orderBy: ReactionOrderBy): Reaction
+  sportFindMany(where: SportFilters, orderBy: SportOrderBy, limit: Int, offset: Int): [Sport!]!
+  sportFindFirst(where: SportFilters, orderBy: SportOrderBy): Sport
+  userFindMany(where: UserFilters, orderBy: UserOrderBy, limit: Int, offset: Int): [User!]!
+  userFindFirst(where: UserFilters, orderBy: UserOrderBy): User
+  userProfileFindMany(where: UserProfileFilters, orderBy: UserProfileOrderBy, limit: Int, offset: Int): [UserProfile!]!
+  userProfileFindFirst(where: UserProfileFilters, orderBy: UserProfileOrderBy): UserProfile
+}
+
+type Mutation {
+  cityInsertMany(values: [CityInsertInput!]!): [City!]!
+  cityUpdateMany(where: CityFilters, set: CityUpdateInput!): [City!]!
+  cityDeleteMany(where: CityFilters): CityDeleteResult!
+  commentInsertMany(values: [CommentInsertInput!]!): [Comment!]!
+  commentUpdateMany(where: CommentFilters, set: CommentUpdateInput!): [Comment!]!
+  commentDeleteMany(where: CommentFilters): CommentDeleteResult!
+  postInsertMany(values: [PostInsertInput!]!): [Post!]!
+  postUpdateMany(where: PostFilters, set: PostUpdateInput!): [Post!]!
+  postDeleteMany(where: PostFilters): PostDeleteResult!
+  reactionInsertMany(values: [ReactionInsertInput!]!): [Reaction!]!
+  reactionUpdateMany(where: ReactionFilters, set: ReactionUpdateInput!): [Reaction!]!
+  reactionDeleteMany(where: ReactionFilters): ReactionDeleteResult!
+  sportInsertMany(values: [SportInsertInput!]!): [Sport!]!
+  sportUpdateMany(where: SportFilters, set: SportUpdateInput!): [Sport!]!
+  sportDeleteMany(where: SportFilters): SportDeleteResult!
+  userInsertMany(values: [UserInsertInput!]!): [User!]!
+  userUpdateMany(where: UserFilters, set: UserUpdateInput!): [User!]!
+  userDeleteMany(where: UserFilters): UserDeleteResult!
+  userProfileInsertMany(values: [UserProfileInsertInput!]!): [UserProfile!]!
+  userProfileUpdateMany(where: UserProfileFilters, set: UserProfileUpdateInput!): [UserProfile!]!
+  userProfileDeleteMany(where: UserProfileFilters): UserProfileDeleteResult!
+}
