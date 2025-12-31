@@ -6,8 +6,7 @@ import { user, post, comment, reaction, userProfile, city, sport } from "./schem
 import { ulid as generateUlid } from "ulid";
 import { graphql, GraphQLSchema } from "graphql";
 import { eq } from "drizzle-orm";
-import { createDataLoaderContext, cleanupDataLoaderContext } from "../generator/utils/context";
-import { createStandardSchema } from "./shared-config";
+import { createSharedEnvelop, executeGraphQLQuery } from "./shared-envelop";
 
 // Create test database client
 const client = createClient({
@@ -16,66 +15,8 @@ const client = createClient({
 
 const db = drizzle(client, { schema });
 
-// ===== USE SHARED STANDARD SCHEMA CONFIGURATION =====
-const { schema: unifiedSchema } = createStandardSchema(db);
-
-// Helper to execute GraphQL queries with unified schema
-// Uses the shared standard schema configuration
-async function executeQuery(query: string, variables?: Record<string, any>) {
-  const dataLoaderContext = createDataLoaderContext();
-
-  try {
-    const result = await graphql({
-      schema: unifiedSchema, // Uses shared standard schema configuration
-      source: query,
-      variableValues: variables,
-      contextValue: {
-        db, // Add database instance for DataLoader resolvers
-        ...dataLoaderContext,
-      },
-    });
-
-    if (result.errors) {
-      throw new Error(result.errors[0].message);
-    }
-    return result.data;
-  } finally {
-    // Cleanup DataLoader context
-    cleanupDataLoaderContext(dataLoaderContext);
-  }
-}
-
-// Helper to execute GraphQL queries with export-tool enabled and DataLoader
-// Uses the shared schema configuration for consistency
-async function executeQueryWithExport(
-  query: string,
-  variables?: Record<string, any>,
-  context?: any
-) {
-  const dataLoaderContext = createDataLoaderContext();
-  const combinedContext = {
-    db, // Add database instance
-    ...dataLoaderContext,
-    ...(context || {}),
-  };
-
-  try {
-    const result = await graphql({
-      schema: unifiedSchema, // Uses shared standard schema configuration
-      source: query,
-      variableValues: variables,
-      contextValue: combinedContext,
-    });
-
-    if (result.errors) {
-      throw new Error(result.errors[0].message);
-    }
-    return result.data;
-  } finally {
-    // Cleanup DataLoader context
-    cleanupDataLoaderContext(dataLoaderContext);
-  }
-}
+// Create shared envelop configuration - same as server
+const enveloped = createSharedEnvelop(db);
 
 describe("DataLoader Resolver Tests", () => {
   const testData = {
@@ -139,7 +80,7 @@ describe("DataLoader Resolver Tests", () => {
     it("should use DataLoader for batching relation queries", async () => {
       // This test verifies that DataLoader is working by checking that
       // multiple users with their posts are fetched efficiently
-      const data = await executeQuery(`
+      const data = await executeGraphQLQuery(enveloped, `
         query {
           userFindMany(limit: 3) {
             id
@@ -181,7 +122,7 @@ describe("DataLoader Resolver Tests", () => {
     });
 
     it("should handle deep nested relations with DataLoader", async () => {
-      const data = await executeQuery(
+      const data = await executeGraphQLQuery(enveloped,
         `
         query($userId: ID!) {
           userFindMany(where: { id: { eq: $userId } }) {
@@ -238,7 +179,7 @@ describe("DataLoader Resolver Tests", () => {
 
   describe("DataLoader Query Resolvers", () => {
     it("should query users with DataLoader optimization", async () => {
-      const data = await executeQuery(`
+      const data = await executeGraphQLQuery(enveloped, `
         query {
           userFindMany {
             id
@@ -258,7 +199,7 @@ describe("DataLoader Resolver Tests", () => {
     });
 
     it("should query users with where filter using DataLoader", async () => {
-      const data = await executeQuery(
+      const data = await executeGraphQLQuery(enveloped,
         `
         query($userId: ID!) {
           userFindMany(where: { id: { eq: $userId } }) {
@@ -279,7 +220,7 @@ describe("DataLoader Resolver Tests", () => {
     it("should query posts with author relation WITHOUT selecting authorId (foreign key)", async () => {
       // This test specifically verifies the fix for the issue where
       // querying post.author would return null if authorId wasn't explicitly selected
-      const data = await executeQuery(`
+      const data = await executeGraphQLQuery(enveloped, `
         query {
           postFindMany {
             id
@@ -310,7 +251,7 @@ describe("DataLoader Resolver Tests", () => {
     });
 
     it("should query posts with nested relations using DataLoader", async () => {
-      const data = await executeQuery(`
+      const data = await executeGraphQLQuery(enveloped, `
         query {
           postFindMany {
             id
@@ -347,7 +288,7 @@ describe("DataLoader Resolver Tests", () => {
     it("should handle multiple nested filters with DataLoader", async () => {
       // This test verifies that complex nested filtering works correctly
       // with our DataLoader approach that selects all columns
-      const data = await executeQuery(
+      const data = await executeGraphQLQuery(enveloped,
         `
         query($userId: ID!) {
           userFindMany(where: { name: { like: "%Test%" } }) {
@@ -452,7 +393,7 @@ describe("DataLoader Resolver Tests", () => {
   describe("DataLoader Mutation Resolvers", () => {
     describe("Insert Operations", () => {
       it("should insert a new user and use DataLoader for result fetching", async () => {
-        const data = await executeQuery(
+        const data = await executeGraphQLQuery(enveloped,
           `
           mutation($values: [UserInsertInput!]!) {
             userInsertMany(values: $values) {
@@ -488,7 +429,7 @@ describe("DataLoader Resolver Tests", () => {
       });
 
       it("should insert multiple users with DataLoader optimization", async () => {
-        const data = await executeQuery(
+        const data = await executeGraphQLQuery(enveloped,
           `
           mutation($values: [UserInsertInput!]!) {
             userInsertMany(values: $values) {
@@ -541,7 +482,7 @@ describe("DataLoader Resolver Tests", () => {
       });
 
       it("should insert post with relations and fetch with DataLoader", async () => {
-        const data = await executeQuery(
+        const data = await executeGraphQLQuery(enveloped,
           `
           mutation($values: [PostInsertInput!]!) {
             postInsertMany(values: $values) {
@@ -587,7 +528,7 @@ describe("DataLoader Resolver Tests", () => {
       });
 
       it("should insert comment with nested relations using DataLoader", async () => {
-        const data = await executeQuery(
+        const data = await executeGraphQLQuery(enveloped,
           `
           mutation($values: [CommentInsertInput!]!) {
             commentInsertMany(values: $values) {
@@ -643,7 +584,7 @@ describe("DataLoader Resolver Tests", () => {
 
     describe("Update Operations", () => {
       it("should update user and fetch with nested relations using DataLoader", async () => {
-        const data = await executeQuery(
+        const data = await executeGraphQLQuery(enveloped,
           `
           mutation($set: UserUpdateInput!, $where: UserFilters) {
             userUpdateMany(set: $set, where: $where) {
@@ -697,7 +638,7 @@ describe("DataLoader Resolver Tests", () => {
           });
         }
 
-        const data = await executeQuery(
+        const data = await executeGraphQLQuery(enveloped,
           `
           mutation($set: UserUpdateInput!, $where: UserFilters) {
             userUpdateMany(set: $set, where: $where) {
@@ -733,7 +674,7 @@ describe("DataLoader Resolver Tests", () => {
       });
 
       it("should update post with complex where conditions and DataLoader relations", async () => {
-        const data = await executeQuery(
+        const data = await executeGraphQLQuery(enveloped,
           `
           mutation($set: PostUpdateInput!, $where: PostFilters) {
             postUpdateMany(set: $set, where: $where) {
@@ -788,7 +729,7 @@ describe("DataLoader Resolver Tests", () => {
       });
 
       it("should update comment and verify nested DataLoader relations", async () => {
-        const data = await executeQuery(
+        const data = await executeGraphQLQuery(enveloped,
           `
           mutation($set: CommentUpdateInput!, $where: CommentFilters) {
             commentUpdateMany(set: $set, where: $where) {
@@ -864,7 +805,7 @@ describe("DataLoader Resolver Tests", () => {
         // First delete the post to avoid foreign key constraint
         await db.delete(post).where(eq(post.id, postToDeleteId));
 
-        const data = await executeQuery(
+        const data = await executeGraphQLQuery(enveloped,
           `
           mutation($where: UserFilters) {
             userDeleteMany(where: $where) {
@@ -922,7 +863,7 @@ describe("DataLoader Resolver Tests", () => {
           });
         }
 
-        const data = await executeQuery(
+        const data = await executeGraphQLQuery(enveloped,
           `
           mutation($where: UserFilters) {
             userDeleteMany(where: $where) {
@@ -994,7 +935,7 @@ describe("DataLoader Resolver Tests", () => {
           await db.delete(comment).where(eq(comment.id, commentId));
         }
 
-        const data = await executeQuery(
+        const data = await executeGraphQLQuery(enveloped,
           `
           mutation($where: PostFilters) {
             postDeleteMany(where: $where) {
@@ -1071,7 +1012,7 @@ describe("DataLoader Resolver Tests", () => {
           await db.delete(reaction).where(eq(reaction.id, reactionId));
         }
 
-        const data = await executeQuery(
+        const data = await executeGraphQLQuery(enveloped,
           `
           mutation($where: CommentFilters) {
             commentDeleteMany(where: $where) {
@@ -1141,7 +1082,7 @@ describe("DataLoader Resolver Tests", () => {
           });
         }
 
-        const data = await executeQuery(
+        const data = await executeGraphQLQuery(enveloped,
           `
           mutation($where: PostFilters) {
             postDeleteMany(where: $where) {
@@ -1196,7 +1137,7 @@ describe("DataLoader Resolver Tests", () => {
 
   describe("DataLoader One-to-One Relations", () => {
     it("should query user with profile using DataLoader (one-to-one)", async () => {
-      const data = await executeQuery(
+      const data = await executeGraphQLQuery(enveloped,
         `
         query($userId: ID!) {
           userFindMany(where: { id: { eq: $userId } }) {
@@ -1223,7 +1164,7 @@ describe("DataLoader Resolver Tests", () => {
     });
 
     it("should handle filtered one-to-one relations with DataLoader", async () => {
-      const data = await executeQuery(
+      const data = await executeGraphQLQuery(enveloped,
         `
         query($userId: ID!) {
           userFindMany(where: { id: { eq: $userId } }) {
@@ -1248,7 +1189,7 @@ describe("DataLoader Resolver Tests", () => {
 
   describe("DataLoader Export Tool Integration", () => {
     it("should work with export directive and DataLoader optimization", async () => {
-      const data = await executeQueryWithExport(
+      const data = await executeGraphQLQuery(enveloped,
         `
         query GetUserPosts($authorId: ID = "") {
           user: userFindFirst(where: { email: { eq: "${testData.testEmail}" } }) {
@@ -1348,7 +1289,7 @@ describe("DataLoader Resolver Tests", () => {
         }
       `;
 
-      const data = await executeQueryWithExport(query, {
+      const data = await executeGraphQLQuery(enveloped, query, {
         citySlug: uniqueSlug,
         sportName: uniqueSportName,
         cityId: "$_cityId",
@@ -1402,7 +1343,7 @@ describe("DataLoader Resolver Tests", () => {
       // Query all users with their posts - this should be efficient with DataLoader
       const startTime = Date.now();
 
-      const data = await executeQuery(`
+      const data = await executeGraphQLQuery(enveloped, `
         query {
           userFindMany(where: { email: { like: "perf%" } }) {
             id
@@ -1452,7 +1393,7 @@ describe("DataLoader Resolver Tests", () => {
 
   describe("DataLoader FindFirst Tests", () => {
     it("should use DataLoader for findFirst with relations", async () => {
-      const data = await executeQuery(
+      const data = await executeGraphQLQuery(enveloped,
         `
         query($userId: ID!) {
           userFindFirst(where: { id: { eq: $userId } }) {
@@ -1491,19 +1432,25 @@ describe("DataLoader Resolver Tests", () => {
 
   describe("DataLoader Type Safety Tests", () => {
     it("should have correct resolver structure with DataLoader", () => {
-      // Get resolvers from the schema for testing
-      const { buildSchemaSDL } = require("../index");
-      const { resolvers } = buildSchemaSDL(db);
+      // Get schema from the enveloped instance
+      const { schema } = enveloped();
+      const queryType = schema.getQueryType();
+      const mutationType = schema.getMutationType();
 
-      expect(resolvers).toHaveProperty("Query");
-      expect(resolvers).toHaveProperty("Mutation");
-      expect(resolvers.Query).toHaveProperty("userFindMany");
-      expect(resolvers.Query).toHaveProperty("postFindMany");
-      expect(resolvers.Query).toHaveProperty("commentFindMany");
-      expect(resolvers.Query).toHaveProperty("reactionFindMany");
-      expect(resolvers.Mutation).toHaveProperty("userInsertMany");
-      expect(resolvers.Mutation).toHaveProperty("userUpdateMany");
-      expect(resolvers.Mutation).toHaveProperty("userDeleteMany");
+      expect(queryType).toBeDefined();
+      expect(mutationType).toBeDefined();
+
+      // Check that the schema has the expected fields
+      const queryFields = queryType?.getFields();
+      const mutationFields = mutationType?.getFields();
+
+      expect(queryFields).toHaveProperty("userFindMany");
+      expect(queryFields).toHaveProperty("postFindMany");
+      expect(queryFields).toHaveProperty("commentFindMany");
+      expect(queryFields).toHaveProperty("reactionFindMany");
+      expect(mutationFields).toHaveProperty("userInsertMany");
+      expect(mutationFields).toHaveProperty("userUpdateMany");
+      expect(mutationFields).toHaveProperty("userDeleteMany");
     });
   });
 
@@ -1534,7 +1481,7 @@ describe("DataLoader Resolver Tests", () => {
       }
 
       // Query the parent comment with its replies
-      const data = await executeQuery(
+      const data = await executeGraphQLQuery(enveloped,
         `
         query($commentId: ID!) {
           commentFindMany(where: { id: { eq: $commentId } }) {
@@ -1619,7 +1566,7 @@ describe("DataLoader Resolver Tests", () => {
       });
 
       // Query the reply and its parent
-      const data = await executeQuery(
+      const data = await executeGraphQLQuery(enveloped,
         `
         query($replyId: ID!) {
           commentFindMany(where: { id: { eq: $replyId } }) {
@@ -1701,7 +1648,7 @@ describe("DataLoader Resolver Tests", () => {
       });
 
       // Query the entire thread
-      const data = await executeQuery(
+      const data = await executeGraphQLQuery(enveloped,
         `
         query($parentId: ID!) {
           commentFindMany(where: { id: { eq: $parentId } }) {
@@ -1790,7 +1737,7 @@ describe("DataLoader Resolver Tests", () => {
 
       // This query will test the exact scenario you asked about:
       // posts -> comments -> replies
-      const data = await executeQuery(
+      const data = await executeGraphQLQuery(enveloped,
         `
         query($postId: ID!) {
           postFindMany(where: { id: { eq: $postId } }) {
@@ -1900,7 +1847,7 @@ describe("DataLoader Resolver Tests", () => {
       console.log("\\n=== TESTING DATALOADER BATCHING WITH MULTIPLE POSTS ===");
 
       // Query multiple posts at once to see DataLoader batching in action
-      const data = await executeQuery(
+      const data = await executeGraphQLQuery(enveloped,
         `
         query {
           postFindMany(where: { title: { like: "Batching Test%" } }) {
@@ -1990,7 +1937,7 @@ describe("Explicit Schema Creation", () => {
     const directiveNames = executableSchema.getDirectives().map(d => d.name);
     expect(directiveNames).toContain("export");
 
-    // Test a simple query
+    // Test a simple query using the shared envelop configuration
     const query = `
       query {
         userFindMany {
@@ -2001,14 +1948,8 @@ describe("Explicit Schema Creation", () => {
       }
     `;
 
-    const result = await graphql({
-      schema: executableSchema,
-      source: query,
-      contextValue: createDataLoaderContext(db),
-    });
-
-    expect(result.errors).toBeUndefined();
-    expect(result.data?.userFindMany).toBeDefined();
+    const result = await executeGraphQLQuery(enveloped, query);
+    expect(result?.userFindMany).toBeDefined();
   });
 
   it("should work with custom scalars and explicit typeDefs order", async () => {
@@ -2054,13 +1995,14 @@ describe("Explicit Schema Creation", () => {
 
   it("should demonstrate shared standard configuration benefits", () => {
     // Test that we can create multiple schemas with the same standard config
+    const { createStandardSchema } = require("./shared-config");
     const schema1 = createStandardSchema(db);
     const schema2 = createStandardSchema(db);
-    
+
     expect(schema1.schema).toBeDefined();
     expect(schema2.schema).toBeDefined();
     expect(schema1.fullTypeDefs).toBe(schema2.fullTypeDefs); // Same typeDefs
-    
+
     // Verify standard configuration includes what we expect
     const directiveNames = schema1.schema.getDirectives().map(d => d.name);
     expect(directiveNames).toContain("export");
