@@ -13,7 +13,10 @@ const client = createClient({
 });
 
 // Create Drizzle instance
-const db = drizzle(client, { schema });
+const db = drizzle(client, { 
+  schema,
+  logger: true // Enable SQL query logging
+});
 
 // ===== USE SHARED STANDARD SCHEMA CONFIGURATION =====
 const { schema: graphqlSchema, fullTypeDefs } = createStandardSchema(db);

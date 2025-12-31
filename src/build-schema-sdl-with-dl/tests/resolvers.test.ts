@@ -13,7 +13,16 @@ const client = createClient({
   url: "file:src/build-schema-sdl-with-dl/tests/test-resolvers.db",
 });
 
-const db = drizzle(client, { schema });
+const db = drizzle(client, {
+  schema,
+  logger: {
+    logQuery: (query, params) => {
+      console.log('🔍 SQL Query:', query);
+      console.log('📋 Parameters:', params);
+      console.log('---');
+    }
+  }
+});
 
 // Create shared envelop configuration - same as server
 const enveloped = createSharedEnvelop(db);
@@ -1388,6 +1397,101 @@ describe("DataLoader Resolver Tests", () => {
       for (const userId of userIds) {
         await db.delete(user).where(eq(user.id, userId));
       }
+    });
+
+    it("should batch user queries when same user is referenced from multiple relations", async () => {
+      // This test specifically verifies that when the same user is referenced
+      // from both post.author and comment.user, DataLoader batches them into a single query
+
+      // Create test users
+      const authorId1 = generateUlid();
+      const authorId2 = generateUlid();
+
+      await db.insert(user).values([
+        { id: authorId1, name: "Author 1", email: "author1@test.com" },
+        { id: authorId2, name: "Author 2", email: "author2@test.com" }
+      ]);
+
+      // Create posts by these authors
+      const postId1 = generateUlid();
+      const postId2 = generateUlid();
+
+      await db.insert(post).values([
+        { id: postId1, title: "Post by Author 1", content: "Content 1", authorId: authorId1 },
+        { id: postId2, title: "Post by Author 2", content: "Content 2", authorId: authorId2 }
+      ]);
+
+      // Create comments - importantly, Author 1 comments on Author 2's post and vice versa
+      // This creates a scenario where the same users appear in both post.author and comment.user
+      const commentId1 = generateUlid();
+      const commentId2 = generateUlid();
+
+      await db.insert(comment).values([
+        { id: commentId1, text: "Author 1 comments on Author 2's post", postId: postId2, userId: authorId1 },
+        { id: commentId2, text: "Author 2 comments on Author 1's post", postId: postId1, userId: authorId2 }
+      ]);
+
+      console.log("\\n=== TESTING DATALOADER BATCHING: SAME USER FROM MULTIPLE RELATIONS ===");
+      console.log("Query structure: posts -> author (user) + comments -> user");
+      console.log("Expected: Single batched query for users, not separate queries for each relation");
+
+      // This query requests the same users from two different relations:
+      // 1. post.author (user)
+      // 2. comment.user (user)
+      // DataLoader should batch these into a single database query
+      const data = await executeGraphQLQuery(enveloped, `
+        query {
+          postFindMany(where: { title: { like: "%Author%" } }) {
+            id
+            title
+            author {
+              id
+              name
+              email
+            }
+            comments {
+              id
+              text
+              user {
+                id
+                name
+                email
+              }
+            }
+          }
+        }
+      `);
+
+      console.log("=== BATCHING TEST COMPLETED ===\\n");
+
+      expect(data?.postFindMany as any[]).toHaveLength(2);
+      const posts = data?.postFindMany as any[];
+
+      // Verify the data structure
+      posts.forEach((post: any) => {
+        expect(post.author).toBeDefined();
+        expect(post.comments).toBeDefined();
+        expect(Array.isArray(post.comments)).toBe(true);
+        expect(post.comments.length).toBe(1); // Each post has one comment
+
+        const comment = post.comments[0];
+        expect(comment.user).toBeDefined();
+
+        // Verify cross-referencing: Author 1's post has Author 2's comment and vice versa
+        if (post.author.name === "Author 1") {
+          expect(comment.user.name).toBe("Author 2");
+        } else if (post.author.name === "Author 2") {
+          expect(comment.user.name).toBe("Author 1");
+        }
+      });
+
+      // Cleanup
+      await db.delete(comment).where(eq(comment.id, commentId1));
+      await db.delete(comment).where(eq(comment.id, commentId2));
+      await db.delete(post).where(eq(post.id, postId1));
+      await db.delete(post).where(eq(post.id, postId2));
+      await db.delete(user).where(eq(user.id, authorId1));
+      await db.delete(user).where(eq(user.id, authorId2));
     });
   });
 
