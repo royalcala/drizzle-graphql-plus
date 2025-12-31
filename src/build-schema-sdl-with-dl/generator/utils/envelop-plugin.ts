@@ -1,5 +1,6 @@
 import type { Plugin } from '@envelop/core';
 import { createDataLoaderContext, cleanupDataLoaderContext } from './context';
+import type { DataLoaderContext } from './dataloader';
 
 /**
  * Envelop plugin that automatically manages DataLoader contexts and database injection.
@@ -31,8 +32,9 @@ export const useDataLoaderCleanup = (options?: {
   onExecute: ({ args }) => ({
     onExecuteDone: () => {
       // Cleanup DataLoaders after request completion
-      if (args.contextValue?.relationLoaders) {
-        cleanupDataLoaderContext(args.contextValue);
+      const context = args.contextValue as any;
+      if (context && context.relationLoaders) {
+        cleanupDataLoaderContext(context as DataLoaderContext);
       }
     }
   })
@@ -67,8 +69,9 @@ export const useDataLoaderContext = (options?: {
 export const useDataLoaderCleanupOnly = (): Plugin => ({
   onExecute: ({ args }) => ({
     onExecuteDone: () => {
-      if (args.contextValue?.relationLoaders) {
-        cleanupDataLoaderContext(args.contextValue);
+      const context = args.contextValue as any;
+      if (context && context.relationLoaders) {
+        cleanupDataLoaderContext(context as DataLoaderContext);
       }
     }
   })

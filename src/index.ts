@@ -38,7 +38,7 @@ export {
   useDataLoaderCleanupOnly,
 } from "./build-schema-sdl-with-dl/generator/utils/envelop-plugin";
 
-export { createExportMiddleware, makeScalarAcceptExports } from "./export-tool";
+export { createExportMiddleware, makeScalarAcceptExports, exportDirectiveTypeDefs } from "./export-tool";
 export { setCustomGraphQL, setCustomGraphQLTypes } from "./helpers";
 export type { GraphQLFieldConfig } from "./helpers";
 export * from "./types";
