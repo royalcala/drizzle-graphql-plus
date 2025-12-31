@@ -1,31 +1,10 @@
-
 directive @export(as: String!) on FIELD
- enum ReactionType {
-    LIKE
-    DISLIKE
-  }
 
-
-  """
-  Populate field data from parent object instead of making new DB query.
-  Only works when no complex arguments (where, orderBy, limit) are provided.
-  Falls back to fresh DB query when complex filtering is needed.
-  """
-  directive @populateFromParent(
-    """The parent field name to get data from (e.g., 'comments')"""
-    source: String!
-    
-    """Filter to apply to parent data using simple conditions"""
-    filter: JSON
-    
-    """Return single item instead of array"""
-    single: Boolean = false
-  ) on FIELD
-
-  """JSON scalar for flexible filter conditions"""
-  scalar JSON
+enum ReactionType { LIKE DISLIKE }
 
 scalar Date
+
+scalar JSON
 
 enum OrderByDirection {
   asc

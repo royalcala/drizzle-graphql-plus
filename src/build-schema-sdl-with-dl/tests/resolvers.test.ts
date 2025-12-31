@@ -1958,139 +1958,6 @@ describe("DataLoader Resolver Tests", () => {
       }
     });
   });
-
-  describe("Query Optimization with @populateFromParent", () => {
-    it("should use @populateFromParent directive to optimize queries", async () => {
-      // Create test data
-      const testPostId = generateUlid();
-      await db.insert(post).values({
-        id: testPostId,
-        title: "Post with Optimized Replies",
-        content: "Testing @populateFromParent directive",
-        authorId: testData.userId,
-      });
-
-      const parentCommentId = generateUlid();
-      await db.insert(comment).values({
-        id: parentCommentId,
-        text: "Parent comment",
-        postId: testPostId,
-        userId: testData.userId,
-        commentId: null,
-      });
-
-      // Create replies
-      for (let i = 0; i < 3; i++) {
-        const replyId = generateUlid();
-        await db.insert(comment).values({
-          id: replyId,
-          text: `Reply ${i + 1}`,
-          postId: testPostId,
-          userId: testData.userId,
-          commentId: parentCommentId,
-        });
-      }
-
-      console.log("\\n=== TESTING @populateFromParent DIRECTIVE ===");
-      console.log("Expected: 2 queries (posts + comments), replies populated from parent data");
-
-      // Query with @populateFromParent directive
-      const data = await executeQuery(
-        `
-        query($postId: ID!) {
-          postFindMany(where: { id: { eq: $postId } }) {
-            id
-            title
-            comments {
-              id
-              text
-              commentId
-              
-              # This should use parent data instead of new DB query
-              replies @populateFromParent(source: "comments", filter: { commentId: { eq: "$parent.id" } }) {
-                id
-                text
-                commentId
-              }
-            }
-          }
-        }
-        `,
-        { postId: testPostId }
-      );
-
-      console.log("=== DIRECTIVE QUERY COMPLETED ===");
-      console.log("Check console output above - should see '⚡ Using parent data' messages");
-
-      expect(data?.postFindMany as any[]).toHaveLength(1);
-      const testPost = (data?.postFindMany as any[])[0];
-
-      // Verify structure
-      expect(testPost.comments.length).toBe(4); // 1 parent + 3 replies
-
-      const parentComment = testPost.comments.find((c: any) => c.commentId === null);
-      expect(parentComment).toBeDefined();
-      expect(parentComment.replies.length).toBe(3);
-
-      // Cleanup
-      await db.delete(comment).where(eq(comment.postId, testPostId));
-      await db.delete(post).where(eq(post.id, testPostId));
-    });
-
-    it("should fallback to fresh query when complex filtering is needed", async () => {
-      // Create test data with timestamps
-      const testPostId = generateUlid();
-      await db.insert(post).values({
-        id: testPostId,
-        title: "Post with Time-based Filtering",
-        content: "Testing fallback to fresh queries",
-        authorId: testData.userId,
-      });
-
-      const parentCommentId = generateUlid();
-      await db.insert(comment).values({
-        id: parentCommentId,
-        text: "Parent comment",
-        postId: testPostId,
-        userId: testData.userId,
-        commentId: null,
-      });
-
-      console.log("\\n=== TESTING FALLBACK TO FRESH QUERY ===");
-      console.log("Expected: 3 queries (posts + comments + filtered replies)");
-
-      // Query with complex WHERE clause - should trigger fresh DB query
-      const data = await executeQuery(
-        `
-        query($postId: ID!) {
-          postFindMany(where: { id: { eq: $postId } }) {
-            id
-            title
-            comments {
-              id
-              text
-              replies {
-                id
-                text
-              }
-            }
-          }
-        }
-        `,
-        { postId: testPostId }
-      );
-
-      console.log("=== FALLBACK QUERY COMPLETED ===");
-      console.log("Query result:", JSON.stringify(data, null, 2));
-      console.log("Check console output above - should see '🔄 Using fresh query' messages");
-
-      expect(data?.postFindMany as any[]).toHaveLength(1);
-
-      // Cleanup
-      await db.delete(comment).where(eq(comment.postId, testPostId));
-      await db.delete(post).where(eq(post.id, testPostId));
-    });
-  });
 });
 
 describe("Explicit Schema Creation", () => {
@@ -2098,11 +1965,9 @@ describe("Explicit Schema Creation", () => {
     // Import the individual components for explicit control
     const {
       buildSchemaSDL,
-      populateFromParentDirectiveTypeDefs,
       exportDirectiveTypeDefs,
       commonScalars,
       makeExecutableSchema,
-      populateFromParentDirectiveTransformer
     } = await import("../index");
 
     // 1. Generate basic schema
@@ -2111,7 +1976,6 @@ describe("Explicit Schema Creation", () => {
     // 2. Create executable schema with explicit typeDefs array
     let executableSchema = makeExecutableSchema({
       typeDefs: [
-        populateFromParentDirectiveTypeDefs,
         exportDirectiveTypeDefs,
         `enum ReactionType { LIKE DISLIKE }`,
         typeDefs
@@ -2119,15 +1983,11 @@ describe("Explicit Schema Creation", () => {
       resolvers: { ...resolvers, ...commonScalars },
     });
 
-    // 3. Apply directive transformers explicitly
-    const schema = populateFromParentDirectiveTransformer(executableSchema);
+    expect(executableSchema).toBeDefined();
+    expect(executableSchema.getTypeMap()).toBeDefined();
 
-    expect(schema).toBeDefined();
-    expect(schema.getTypeMap()).toBeDefined();
-
-    // Check that both directives are included
-    const directiveNames = schema.getDirectives().map(d => d.name);
-    expect(directiveNames).toContain("populateFromParent");
+    // Check that directives are included
+    const directiveNames = executableSchema.getDirectives().map(d => d.name);
     expect(directiveNames).toContain("export");
 
     // Test a simple query
@@ -2142,7 +2002,7 @@ describe("Explicit Schema Creation", () => {
     `;
 
     const result = await graphql({
-      schema,
+      schema: executableSchema,
       source: query,
       contextValue: createDataLoaderContext(db),
     });
@@ -2154,36 +2014,31 @@ describe("Explicit Schema Creation", () => {
   it("should work with custom scalars and explicit typeDefs order", async () => {
     const {
       buildSchemaSDL,
-      populateFromParentDirectiveTypeDefs,
       exportDirectiveTypeDefs,
       commonScalars,
       makeExecutableSchema,
-      populateFromParentDirectiveTransformer
     } = await import("../index");
 
     const { typeDefs, resolvers } = buildSchemaSDL(db);
 
-    const schema = populateFromParentDirectiveTransformer(
-      makeExecutableSchema({
-        typeDefs: [
-          populateFromParentDirectiveTypeDefs,
-          exportDirectiveTypeDefs,
-          `enum ReactionType { LIKE DISLIKE }`,
-          `scalar DateTime`,
-          `enum Status { ACTIVE INACTIVE }`,
-          typeDefs
-        ],
-        resolvers: {
-          ...resolvers,
-          ...commonScalars,
-          DateTime: {
-            serialize: (value: any) => value?.toISOString?.() || value,
-            parseValue: (value: any) => new Date(value),
-            parseLiteral: (ast: any) => new Date(ast.value),
-          },
+    const schema = makeExecutableSchema({
+      typeDefs: [
+        exportDirectiveTypeDefs,
+        `enum ReactionType { LIKE DISLIKE }`,
+        `scalar DateTime`,
+        `enum Status { ACTIVE INACTIVE }`,
+        typeDefs
+      ],
+      resolvers: {
+        ...resolvers,
+        ...commonScalars,
+        DateTime: {
+          serialize: (value: any) => value?.toISOString?.() || value,
+          parseValue: (value: any) => new Date(value),
+          parseLiteral: (ast: any) => new Date(ast.value),
         },
-      })
-    );
+      },
+    });
 
     expect(schema).toBeDefined();
 
@@ -2192,9 +2047,8 @@ describe("Explicit Schema Creation", () => {
     expect(schema.getType("Status")).toBeDefined();
     expect(schema.getType("ReactionType")).toBeDefined();
 
-    // Check that both directives are included
+    // Check that directives are included
     const directiveNames = schema.getDirectives().map(d => d.name);
-    expect(directiveNames).toContain("populateFromParent");
     expect(directiveNames).toContain("export");
   });
 
@@ -2209,7 +2063,6 @@ describe("Explicit Schema Creation", () => {
     
     // Verify standard configuration includes what we expect
     const directiveNames = schema1.schema.getDirectives().map(d => d.name);
-    expect(directiveNames).toContain("populateFromParent");
     expect(directiveNames).toContain("export");
     expect(schema1.schema.getType("ReactionType")).toBeDefined();
   });

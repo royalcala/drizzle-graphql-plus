@@ -7,7 +7,6 @@ A composable GraphQL schema generator for Drizzle ORM with built-in DataLoader o
 - 🚀 **DataLoader optimization** - Automatic batching and caching for relations
 - 🎯 **Self-referencing relations** - Support for comment replies, nested categories, etc.
 - 🔧 **Composable architecture** - Mix and match features as needed
-- 📝 **GraphQL directives** - `@populateFromParent` for query optimization
 - 🎨 **Custom scalars** - Built-in JSON scalar and easy custom scalar support
 - 🔒 **Type safety** - Full TypeScript support with inferred types
 
@@ -18,11 +17,9 @@ A composable GraphQL schema generator for Drizzle ORM with built-in DataLoader o
 ```typescript
 import { 
   buildSchemaSDL, 
-  populateFromParentDirectiveTypeDefs,
   exportDirectiveTypeDefs,
   commonScalars,
   makeExecutableSchema,
-  applyDirectiveTransformers
 } from "./index";
 import { drizzle } from "drizzle-orm/libsql";
 
@@ -34,7 +31,6 @@ const { typeDefs, resolvers } = buildSchemaSDL(db);
 // 2. Create executable schema with explicit typeDefs array
 const executableSchema = makeExecutableSchema({
   typeDefs: [
-    populateFromParentDirectiveTypeDefs,  // @populateFromParent directive
     exportDirectiveTypeDefs,              // @export directive
     `enum Status { ACTIVE INACTIVE }`,    // Your custom types
     typeDefs                              // Generated schema
@@ -46,10 +42,8 @@ const executableSchema = makeExecutableSchema({
   },
 });
 
-// 3. Apply directive transformers
-const schema = applyDirectiveTransformers(executableSchema, {
-  includePopulateFromParent: true,
-});
+// 3. Ready to use
+const schema = executableSchema;
 
 // 4. Use with any GraphQL server
 const server = new ApolloServer({ schema });
@@ -64,11 +58,9 @@ If you need even more control, you can build everything step by step:
 ```typescript
 import { 
   buildSchemaSDL, 
-  populateFromParentDirectiveTypeDefs,
   exportDirectiveTypeDefs,
   commonScalars,
   makeExecutableSchema,
-  populateFromParentDirectiveTransformer
 } from "./index";
 
 // 1. Generate basic typeDefs and resolvers
@@ -76,7 +68,6 @@ const { typeDefs, resolvers } = buildSchemaSDL(db);
 
 // 2. Build your typeDefs array exactly how you want
 const allTypeDefs = [
-  populateFromParentDirectiveTypeDefs,
   exportDirectiveTypeDefs,
   `scalar DateTime`,
   `enum Status { ACTIVE INACTIVE }`,
@@ -93,8 +84,8 @@ const executableSchema = makeExecutableSchema({
   },
 });
 
-// 4. Apply only the transformers you want
-const schema = populateFromParentDirectiveTransformer(executableSchema);
+// 4. Ready to use
+const schema = executableSchema;
 ```
 
 ## Composable Architecture
@@ -127,27 +118,12 @@ const extendedResolvers = {
 ### 3. Add Directive Definitions
 
 ```typescript
-import { addDirectiveDefinitions } from "./index";
+import { exportDirectiveTypeDefs } from "./index";
 
-const typeDefsWithDirectives = addDirectiveDefinitions(extendedTypeDefs);
-```
-
-### 4. Apply Directive Transformers
-
-```typescript
-import { applyDirectiveTransformers } from "./index";
-import { makeExecutableSchema } from "@graphql-tools/schema";
-
-// Create basic executable schema
-const executableSchema = makeExecutableSchema({
-  typeDefs: typeDefsWithDirectives,
-  resolvers: extendedResolvers,
-});
-
-// Apply directive transformers
-const schemaWithDirectives = applyDirectiveTransformers(executableSchema, {
-  includePopulateFromParent: true
-});
+const typeDefsWithDirectives = [
+  exportDirectiveTypeDefs,
+  extendedTypeDefs
+].join('\n\n');
 ```
 
 ## Available Exports
@@ -156,41 +132,16 @@ const schemaWithDirectives = applyDirectiveTransformers(executableSchema, {
 
 - `buildSchemaSDL(db)` - Generate basic typeDefs and resolvers
 - `makeExecutableSchema` - Re-exported from @graphql-tools/schema for convenience
-- `applyDirectiveTransformers(schema, options)` - Apply directive transformers to executable schema
 
 ### Directive TypeDefs
 
-- `populateFromParentDirectiveTypeDefs` - TypeDefs for @populateFromParent directive
 - `exportDirectiveTypeDefs` - TypeDefs for @export directive
 
 ### Utilities
 
 - `commonScalars` - Pre-built scalars (JSON, etc.)
-- `populateFromParentDirectiveTransformer` - Individual transformer function
 
 ## GraphQL Directives
-
-### @populateFromParent
-
-Optimizes nested queries by reusing parent data when possible:
-
-```graphql
-query {
-  posts {
-    id
-    title
-    comments {
-      id
-      text
-      # Uses parent data instead of fresh DB query
-      replies @populateFromParent(source: "comments") {
-        id
-        text
-      }
-    }
-  }
-}
-```
 
 ### @export
 
@@ -208,7 +159,7 @@ query {
 }
 ```
 
-Both directives automatically fall back to fresh DB queries when complex filtering is needed.
+The directive automatically falls back to fresh DB queries when complex filtering is needed.
 
 ## DataLoader Features
 
@@ -229,7 +180,6 @@ With DataLoader: 2-4 optimized queries (batched)
 For complex nested relations like posts → comments → replies:
 - **Traditional**: 1 + N + M queries
 - **With DataLoader**: 4 queries (posts, comments, replies, parent comments)
-- **With @populateFromParent**: 2 queries (posts, comments - replies populated from parent)
 
 ## Integration Examples
 
@@ -239,26 +189,20 @@ For complex nested relations like posts → comments → replies:
 import { ApolloServer } from '@apollo/server';
 import { 
   buildSchemaSDL, 
-  populateFromParentDirectiveTypeDefs,
   exportDirectiveTypeDefs,
   commonScalars,
   makeExecutableSchema,
-  applyDirectiveTransformers
 } from './index';
 
 const { typeDefs, resolvers } = buildSchemaSDL(db);
 
-const schema = applyDirectiveTransformers(
-  makeExecutableSchema({
-    typeDefs: [
-      populateFromParentDirectiveTypeDefs,
-      exportDirectiveTypeDefs,
-      typeDefs
-    ],
-    resolvers: { ...resolvers, ...commonScalars },
-  }),
-  { includePopulateFromParent: true }
-);
+const schema = makeExecutableSchema({
+  typeDefs: [
+    exportDirectiveTypeDefs,
+    typeDefs
+  ],
+  resolvers: { ...resolvers, ...commonScalars },
+});
 
 const server = new ApolloServer({ schema });
 ```
@@ -269,26 +213,20 @@ const server = new ApolloServer({ schema });
 import { createYoga } from 'graphql-yoga';
 import { 
   buildSchemaSDL, 
-  populateFromParentDirectiveTypeDefs,
   exportDirectiveTypeDefs,
   commonScalars,
   makeExecutableSchema,
-  applyDirectiveTransformers
 } from './index';
 
 const { typeDefs, resolvers } = buildSchemaSDL(db);
 
-const schema = applyDirectiveTransformers(
-  makeExecutableSchema({
-    typeDefs: [
-      populateFromParentDirectiveTypeDefs,
-      exportDirectiveTypeDefs,
-      typeDefs
-    ],
-    resolvers: { ...resolvers, ...commonScalars },
-  }),
-  { includePopulateFromParent: true }
-);
+const schema = makeExecutableSchema({
+  typeDefs: [
+    exportDirectiveTypeDefs,
+    typeDefs
+  ],
+  resolvers: { ...resolvers, ...commonScalars },
+});
 
 const yoga = createYoga({ schema });
 ```
@@ -313,26 +251,19 @@ const executableSchema = makeExecutableSchema({
   typeDefs: typeDefsWithDirectives,
   resolvers: { ...resolvers, ...commonScalars },
 });
-const schemaWithDirectives = applyDirectiveTransformers(executableSchema, {
-  includePopulateFromParent: true
-});
 ```
 
 **After (Explicit Control):**
 ```typescript
 const { typeDefs, resolvers } = buildSchemaSDL(db);
 
-const schema = applyDirectiveTransformers(
-  makeExecutableSchema({
-    typeDefs: [
-      populateFromParentDirectiveTypeDefs,
-      exportDirectiveTypeDefs,
-      typeDefs
-    ],
-    resolvers: { ...resolvers, ...commonScalars },
-  }),
-  { includePopulateFromParent: true }
-);
+const schema = makeExecutableSchema({
+  typeDefs: [
+    exportDirectiveTypeDefs,
+    typeDefs
+  ],
+  resolvers: { ...resolvers, ...commonScalars },
+});
 ```
 
 This gives you full transparency and control over what gets included in your schema, while still providing all the powerful features with minimal code.

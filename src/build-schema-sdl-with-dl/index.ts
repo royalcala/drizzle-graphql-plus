@@ -9,8 +9,6 @@ import {
 } from "./generator/schema";
 import { generateQueries } from "./generator/queries";
 import { generateMutations } from "./generator/mutations";
-import { addPopulateFromParentDirective, populateFromParentDirectiveTypeDefs } from "./directives/directive-definitions";
-import { populateFromParentDirectiveTransformer } from "./directives/cached";
 import { GraphQLJSON } from "./scalars/json";
 import type { GraphQLSchema } from "graphql";
 import { exportDirectiveTypeDefs } from "../export-tool/directive-definitions";
@@ -200,13 +198,10 @@ export const commonScalars = {
 };
 
 // Export individual directive typeDefs
-export { populateFromParentDirectiveTypeDefs } from './directives/directive-definitions';
 export { exportDirectiveTypeDefs } from '../export-tool/directive-definitions';
 
 // Re-export makeExecutableSchema for user convenience
 export { makeExecutableSchema } from "@graphql-tools/schema";
 
 // Re-export directive transformers for explicit composition
-export { populateFromParentDirectiveTransformer } from './directives/cached';
-export { addPopulateFromParentDirective } from './directives/directive-definitions';
 export { GraphQLJSON } from './scalars/json';

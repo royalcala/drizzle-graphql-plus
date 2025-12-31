@@ -7,8 +7,6 @@ import {
 import { 
   buildSchemaSDL, 
   makeExecutableSchema,
-  populateFromParentDirectiveTransformer,
-  populateFromParentDirectiveTypeDefs,
   exportDirectiveTypeDefs,
   commonScalars
 } from "../index";
@@ -33,7 +31,6 @@ export function createStandardSchema(db: AnyDrizzleDB<any>) {
 
   // 2. Explicitly compose all directive typeDefs - always the same
   const fullTypeDefs = [
-    populateFromParentDirectiveTypeDefs,
     exportDirectiveTypeDefs,
     `enum ReactionType { LIKE DISLIKE }`,
     typeDefs
@@ -58,7 +55,7 @@ export function createStandardSchema(db: AnyDrizzleDB<any>) {
   });
 
   // 5. Apply directive transformers explicitly - always the same
-  schema = populateFromParentDirectiveTransformer(schema);
+  // (No directive transformers currently applied)
 
   return {
     schema,
