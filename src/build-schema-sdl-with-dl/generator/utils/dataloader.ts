@@ -29,7 +29,9 @@ export class RelationDataLoader {
   constructor(
     private queryBase: RelationalQueryBuilder<any, any, any, any>,
     private tableInfo: TableInfo,
-    private relations: Record<string, TableNamedRelations>
+    private relations: Record<string, TableNamedRelations>,
+    private context?: any,  // Add context parameter
+    private debugConfig?: { dataLoader?: boolean; exportVariables?: boolean }  // Add debug config
   ) {}
 
   private createLoaderKey(key: RelationLoaderKey): string {
@@ -81,12 +83,34 @@ export class RelationDataLoader {
       const allParentIds = groupKeys.flatMap(key => key.parentIds);
       const uniqueParentIds = Array.from(new Set(allParentIds));
 
-      // Build the query
+      // RESOLVE EXPORT VARIABLES BEFORE BUILDING QUERY
+      let resolvedWhere = firstKey.where;
+      if (resolvedWhere && this.context?.exportStore) {
+        const { hasExportVariables, resolveExportVariables } = await import('../../../export-tool/utils');
+        if (hasExportVariables(resolvedWhere)) {
+          try {
+            if (this.debugConfig?.exportVariables) {
+              console.log(`🔍 DataLoader: Resolving export variables in where clause:`, resolvedWhere);
+            }
+            resolvedWhere = await resolveExportVariables(resolvedWhere, this.context.exportStore);
+            if (this.debugConfig?.exportVariables) {
+              console.log(`✅ DataLoader: Successfully resolved to:`, resolvedWhere);
+            }
+          } catch (error) {
+            if (this.debugConfig?.exportVariables) {
+              console.warn(`❌ DataLoader: Failed to resolve export variables:`, error);
+            }
+            // Continue with original where clause
+          }
+        }
+      }
+
+      // Build the query with resolved where clause
       const whereClause = this.buildBatchWhereClause(
         uniqueParentIds, 
         firstKey.isReversedRelation, 
         firstKey.foreignKey,
-        firstKey.where
+        resolvedWhere  // Use resolved where clause
       );
       if (!whereClause) {
         // If we can't build a where clause, return empty results
@@ -106,9 +130,13 @@ export class RelationDataLoader {
         offset: firstKey.offset,
       });
 
-      console.log(`DataLoader executing query for relation ${firstKey.relationName} with foreign key ${firstKey.foreignKey}`);
+      if (this.debugConfig?.dataLoader) {
+        console.log(`DataLoader executing query for relation ${firstKey.relationName} with foreign key ${firstKey.foreignKey}`);
+      }
       const batchResults = await query;
-      console.log(`DataLoader got ${batchResults.length} results:`, batchResults);
+      if (this.debugConfig?.dataLoader) {
+        console.log(`DataLoader got ${batchResults.length} results:`, batchResults);
+      }
 
       // Group results by parent ID
       const resultsByParentId = new Map<any, any[]>();
@@ -206,12 +234,13 @@ export function getRelationLoader(
   tableName: string,
   queryBase: RelationalQueryBuilder<any, any, any, any>,
   tableInfo: TableInfo,
-  relations: Record<string, TableNamedRelations>
+  relations: Record<string, TableNamedRelations>,
+  debugConfig?: { dataLoader?: boolean; exportVariables?: boolean }
 ): RelationDataLoader {
   if (!context.relationLoaders.has(tableName)) {
     context.relationLoaders.set(
       tableName,
-      new RelationDataLoader(queryBase, tableInfo, relations)
+      new RelationDataLoader(queryBase, tableInfo, relations, context, debugConfig)  // Pass debug config
     );
   }
   return context.relationLoaders.get(tableName)!;

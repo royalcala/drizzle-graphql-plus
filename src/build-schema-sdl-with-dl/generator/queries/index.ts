@@ -8,7 +8,8 @@ export type QueryResolvers = Record<string, (...args: any[]) => Promise<any>>;
 export const generateQueries = (
     db: BaseSQLiteDatabase<any, any, any, any>,
     tables: Record<string, TableInfo>,
-    relations: Record<string, Record<string, TableNamedRelations>>
+    relations: Record<string, Record<string, TableNamedRelations>>,
+    debugConfig?: { dataLoader?: boolean; exportVariables?: boolean }
 ): QueryResolvers => {
     const queries: QueryResolvers = {};
 
@@ -28,14 +29,16 @@ export const generateQueries = (
             queryBase,
             tableInfo,
             tables,
-            relations
+            relations,
+            debugConfig
         );
 
         queries[`${tableName}FindFirst`] = createDataLoaderFindFirstResolver(
             queryBase,
             tableInfo,
             tables,
-            relations
+            relations,
+            debugConfig
         );
     }
 

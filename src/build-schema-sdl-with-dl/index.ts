@@ -73,14 +73,13 @@ export type UpdateInput<TTable> = TTable extends { $inferInsert: infer I }
     ? Partial<I>
     : never;
 
-// Enhanced config with DataLoader options - removed, DataLoader is always enabled
-// export interface BuildSchemaSDLWithDLConfig extends BuildSchemaConfig {
-//     useDataLoader?: boolean;
-//     dataLoaderOptions?: {
-//         maxBatchSize?: number;
-//         cache?: boolean;
-//     };
-// }
+// Enhanced config with DataLoader options
+export interface BuildSchemaSDLConfig {
+    debug?: {
+        dataLoader?: boolean;  // Enable DataLoader debug logs
+        exportVariables?: boolean;  // Enable export variable resolution logs
+    };
+}
 
 export type BuildSchemaSDLResult<
     TSchema extends Record<string, any> = Record<string, any>
@@ -137,7 +136,8 @@ export const buildSchemaSDL = <
     ? S
     : Record<string, any>
 >(
-    db: TDbClient
+    db: TDbClient,
+    config?: BuildSchemaSDLConfig
 ): BuildSchemaSDLResult<TSchema> => {
     const schema = db._.fullSchema;
     if (!schema) {
@@ -171,11 +171,12 @@ export const buildSchemaSDL = <
     const typeDefs = typeDefsArray.join("\n\n");
 
     // Generate resolvers with DataLoader support (always enabled)
-    const queries = generateQueries(db, tables, relations);
+    const queries = generateQueries(db, tables, relations, config?.debug);
     const { mutations, deleteResultResolvers } = generateMutations(
         db,
         tables,
-        relations
+        relations,
+        config?.debug
     );
 
     const resolvers = {

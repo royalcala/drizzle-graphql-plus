@@ -22,7 +22,8 @@ export const createDataLoaderFindManyResolver = (
     queryBase: RelationalQueryBuilder<any, any, any, any>,
     tableInfo: TableInfo,
     tables: Record<string, TableInfo>,
-    relations: Record<string, Record<string, TableNamedRelations>>
+    relations: Record<string, Record<string, TableNamedRelations>>,
+    debugConfig?: { dataLoader?: boolean; exportVariables?: boolean }
 ) => {
     return async (
         parent: any,
@@ -80,7 +81,8 @@ export const createDataLoaderFindManyResolver = (
                 tables,
                 relations,
                 allFields,
-                context
+                context,
+                debugConfig
             );
 
             return enhancedResults;
@@ -98,7 +100,8 @@ export const createDataLoaderFindFirstResolver = (
     queryBase: RelationalQueryBuilder<any, any, any, any>,
     tableInfo: TableInfo,
     tables: Record<string, TableInfo>,
-    relations: Record<string, Record<string, TableNamedRelations>>
+    relations: Record<string, Record<string, TableNamedRelations>>,
+    debugConfig?: { dataLoader?: boolean; exportVariables?: boolean }
 ) => {
     return async (
         parent: any,
@@ -151,7 +154,8 @@ export const createDataLoaderFindFirstResolver = (
                 tables,
                 relations,
                 allFields,
-                context
+                context,
+                debugConfig
             );
 
             return enhancedResult || null;
@@ -171,7 +175,8 @@ async function loadRelationsWithDataLoader(
     tables: Record<string, TableInfo>,
     relations: Record<string, Record<string, TableNamedRelations>>,
     fields: Record<string, ResolveTree>,
-    context: DataLoaderContext
+    context: DataLoaderContext,
+    debugConfig?: { dataLoader?: boolean; exportVariables?: boolean }
 ): Promise<any[]> {
     const tableRelations = relations[tableInfo.name];
     if (!tableRelations) {
@@ -244,7 +249,9 @@ async function loadRelationsWithDataLoader(
         // Get relation configuration
         const relationConfig = (relation as any).config;
 
-        console.log(`Processing relation ${relName} for table ${tableInfo.name} -> ${targetTableName}`);
+        if (debugConfig?.dataLoader) {
+            console.log(`Processing relation ${relName} for table ${tableInfo.name} -> ${targetTableName}`);
+        }
 
         if (relationConfig?.fields && relationConfig.fields.length > 0) {
             // This is a relation where we specify both fields and references
@@ -264,7 +271,9 @@ async function loadRelationsWithDataLoader(
 
                 foreignKeyName = referenceKeyName; // We'll query target table by this key
                 isReversedRelation = false; // We're querying target table by its primary key
-                console.log(`One-to-one relation: foreignKey=${foreignKeyName}, isReversed=${isReversedRelation}`);
+                if (debugConfig?.dataLoader) {
+                    console.log(`One-to-one relation: foreignKey=${foreignKeyName}, isReversed=${isReversedRelation}`);
+                }
             } else {
                 // For many-to-one relations like post.author
                 const fieldColumn = relationConfig.fields[0];
@@ -276,13 +285,17 @@ async function loadRelationsWithDataLoader(
                 ) || referenceColumn.name;
 
                 isReversedRelation = false; // We're querying target table by its primary key
-                console.log(`Many-to-one relation: foreignKey=${foreignKeyName}, isReversed=${isReversedRelation}`);
+                if (debugConfig?.dataLoader) {
+                    console.log(`Many-to-one relation: foreignKey=${foreignKeyName}, isReversed=${isReversedRelation}`);
+                }
             }
         } else if (relationConfig?.references && relationConfig.references.length > 0) {
             // This shouldn't happen in normal Drizzle relations, but handle it just in case
             foreignKeyName = relationConfig.references[0].name;
             isReversedRelation = true;
-            console.log(`References-only relation: foreignKey=${foreignKeyName}, isReversed=${isReversedRelation}`);
+            if (debugConfig?.dataLoader) {
+                console.log(`References-only relation: foreignKey=${foreignKeyName}, isReversed=${isReversedRelation}`);
+            }
         } else {
             // Inferred relation - need to find the foreign key
             // For one-to-many relations like user.posts, look for authorId in post table
@@ -367,7 +380,9 @@ async function loadRelationsWithDataLoader(
             if (tableInfo.columns[fieldKeyName]) {
                 // Many-to-one relation: extract foreign key values from main results
                 actualParentIds = mainResults.map(result => result[fieldKeyName]).filter(id => id != null);
-                console.log(`Extracted foreign key values for many-to-one relation:`, actualParentIds);
+                if (debugConfig?.dataLoader) {
+                    console.log(`Extracted foreign key values for many-to-one relation:`, actualParentIds);
+                }
             }
         }
 
@@ -383,10 +398,13 @@ async function loadRelationsWithDataLoader(
             targetTableName,
             targetQueryBase,
             targetTable,
-            relations[targetTableName] || {}
+            relations[targetTableName] || {},
+            debugConfig  // Pass debug config
         );
 
-        console.log(`Created relation loader for ${targetTableName}, calling loadRelation with parentIds:`, actualParentIds);
+        if (debugConfig?.dataLoader) {
+            console.log(`Created relation loader for ${targetTableName}, calling loadRelation with parentIds:`, actualParentIds);
+        }
 
         // Load relation data
         const relationPromise = relationLoader.loadRelation(
@@ -396,7 +414,9 @@ async function loadRelationsWithDataLoader(
             relationOptions,
             isReversedRelation
         ).then(async (relationResults) => {
-            console.log(`Relation ${relName} loaded, got ${relationResults.length} results:`, relationResults);
+            if (debugConfig?.dataLoader) {
+                console.log(`Relation ${relName} loaded, got ${relationResults.length} results:`, relationResults);
+            }
             // Create a map for quick lookup
             const relationMap = new Map<any, any[]>();
             for (const result of relationResults) {
@@ -418,7 +438,8 @@ async function loadRelationsWithDataLoader(
                     tables,
                     relations,
                     relationFields,
-                    context
+                    context,
+                    debugConfig
                 );
 
                 // Rebuild the relation map with enhanced data

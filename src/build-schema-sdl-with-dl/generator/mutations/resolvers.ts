@@ -18,10 +18,11 @@ export const createInsertManyResolver = (
     tableInfo: TableInfo,
     tables: Record<string, TableInfo>,
     relations: Record<string, Record<string, TableNamedRelations>>,
-    primaryKeyColumn: any
+    primaryKeyColumn: any,
+    debugConfig?: { dataLoader?: boolean; exportVariables?: boolean }
 ) => {
     // Always use DataLoader resolver
-    const queryResolver = createDataLoaderFindManyResolver(queryBase, tableInfo, tables, relations);
+    const queryResolver = createDataLoaderFindManyResolver(queryBase, tableInfo, tables, relations, debugConfig);
 
     return async (
         parent: any,
@@ -83,10 +84,11 @@ export const createUpdateManyResolver = (
     tableInfo: TableInfo,
     tables: Record<string, TableInfo>,
     relations: Record<string, Record<string, TableNamedRelations>>,
-    primaryKeyColumn: any
+    primaryKeyColumn: any,
+    debugConfig?: { dataLoader?: boolean; exportVariables?: boolean }
 ) => {
     // Always use DataLoader resolver
-    const queryResolver = createDataLoaderFindManyResolver(queryBase, tableInfo, tables, relations);
+    const queryResolver = createDataLoaderFindManyResolver(queryBase, tableInfo, tables, relations, debugConfig);
 
     return async (
         parent: any,
@@ -150,10 +152,11 @@ export const createDeleteManyResolver = (
     tableInfo: TableInfo,
     tables: Record<string, TableInfo>,
     relations: Record<string, Record<string, TableNamedRelations>>,
-    primaryKeyColumn: any
+    primaryKeyColumn: any,
+    debugConfig?: { dataLoader?: boolean; exportVariables?: boolean }
 ) => {
     // Always use DataLoader resolver
-    const queryResolver = createDataLoaderFindManyResolver(queryBase, tableInfo, tables, relations);
+    const queryResolver = createDataLoaderFindManyResolver(queryBase, tableInfo, tables, relations, debugConfig);
 
     return async (
         parent: any,

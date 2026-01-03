@@ -18,7 +18,8 @@ export type DeleteResultResolvers = Record<string, Record<string, any>>;
 export const generateMutations = (
     db: BaseSQLiteDatabase<any, any, any, any>,
     tables: Record<string, TableInfo>,
-    relations: Record<string, Record<string, TableNamedRelations>>
+    relations: Record<string, Record<string, TableNamedRelations>>,
+    debugConfig?: { dataLoader?: boolean; exportVariables?: boolean }
 ): {
     mutations: MutationResolvers;
     deleteResultResolvers: DeleteResultResolvers;
@@ -58,7 +59,8 @@ export const generateMutations = (
             tableInfo,
             tables,
             relations,
-            primaryKeyColumn
+            primaryKeyColumn,
+            debugConfig
         );
 
         // Update mutation - always use DataLoader approach
@@ -68,7 +70,8 @@ export const generateMutations = (
             tableInfo,
             tables,
             relations,
-            primaryKeyColumn
+            primaryKeyColumn,
+            debugConfig
         );
 
         // Delete mutation - always use DataLoader approach
@@ -78,7 +81,8 @@ export const generateMutations = (
             tableInfo,
             tables,
             relations,
-            primaryKeyColumn
+            primaryKeyColumn,
+            debugConfig
         );
 
         // Add field resolver for DeleteResult type
