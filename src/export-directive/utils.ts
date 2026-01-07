@@ -22,18 +22,18 @@ export function getVariableName(value: string): string | null {
 
 /**
  * Recursively resolve export variables in arguments
- * Handles nested objects, arrays, and primitive values
+ * With @serial directive, we can rely on proper execution order for variable resolution
  */
 export async function resolveExportVariables(
   args: any,
   exportStore: ExportStore,
-  timeout?: number,
-  allowNull = true // Allow null values by default to handle cases where exports don't happen
+  timeout = 5000
 ): Promise<any> {
-  // Handle primitive export variables
+  // Handle primitive export variables (e.g., "$_userId")
   if (isExportVariable(args)) {
     const varName = getVariableName(args)!;
-    return await exportStore.waitFor(varName, timeout, allowNull);
+    const resolvedValue = await exportStore.waitFor(varName, timeout, false);
+    return resolvedValue;
   }
 
   // Handle arrays
@@ -42,14 +42,9 @@ export async function resolveExportVariables(
       args.map(async (item) => {
         if (isExportVariable(item)) {
           const varName = getVariableName(item)!;
-          return await exportStore.waitFor(varName, timeout, allowNull);
+          return await exportStore.waitFor(varName, timeout, false);
         } else if (typeof item === "object" && item !== null) {
-          return await resolveExportVariables(
-            item,
-            exportStore,
-            timeout,
-            allowNull
-          );
+          return await resolveExportVariables(item, exportStore, timeout);
         }
         return item;
       })
@@ -57,27 +52,31 @@ export async function resolveExportVariables(
     return resolved;
   }
 
-  // Handle objects
+  // Handle objects recursively
   if (typeof args === "object" && args !== null) {
     const resolved: Record<string, any> = {};
 
     for (const [key, value] of Object.entries(args)) {
       if (isExportVariable(value)) {
         const varName = getVariableName(value)!;
-        resolved[key] = await exportStore.waitFor(varName, timeout, allowNull);
-      } else if (Array.isArray(value)) {
-        resolved[key] = await resolveExportVariables(
-          value,
-          exportStore,
+        const resolvedValue = await exportStore.waitFor(
+          varName,
           timeout,
-          allowNull
+          false
         );
+
+        // Special handling for OR with array values - convert to proper OR structure
+        if (key === "OR" && Array.isArray(resolvedValue)) {
+          // Convert ["id1", "id2", "id3"] to [{ id: { eq: "id1" } }, { id: { eq: "id2" } }, { id: { eq: "id3" } }]
+          resolved[key] = resolvedValue.map((id) => ({ id: { eq: id } }));
+        } else {
+          resolved[key] = resolvedValue;
+        }
       } else if (typeof value === "object" && value !== null) {
         resolved[key] = await resolveExportVariables(
           value,
           exportStore,
-          timeout,
-          allowNull
+          timeout
         );
       } else {
         resolved[key] = value;
@@ -87,7 +86,7 @@ export async function resolveExportVariables(
     return resolved;
   }
 
-  // Return primitive values as-is
+  // Return primitive values unchanged
   return args;
 }
 

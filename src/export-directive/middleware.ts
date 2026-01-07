@@ -1,11 +1,10 @@
 import { GraphQLResolveInfo } from "graphql";
 import { ExportStore } from "./ExportStore";
-
 import {
   resolveExportVariables,
+  hasExportVariables,
   getExportDirective,
   processExports,
-  hasExportVariables,
 } from "./utils";
 
 /**
@@ -29,15 +28,16 @@ export type ResolverFn<
 export type ResolverMiddleware = (next: ResolverFn) => ResolverFn;
 
 /**
- * Create export middleware that wraps resolvers to handle @export directive
+ * Create export middleware that handles @export directive
  *
- * This middleware:
- * 1. Before resolver execution: Checks if arguments contain $_varName patterns
- *    and waits for/replaces them with actual exported values
- * 2. After resolver execution: Checks if any fields have @export directive
- *    and stores those values in the ExportStore
+ * This middleware works with @serial directive to ensure proper execution order:
+ * 1. Resolves export variables in arguments before executing resolver
+ * 2. Stores exported values after resolver execution
+ * 3. Processes nested exports in selection sets
  *
- * @returns Middleware function for resolver composition
+ * IMPORTANT: Use @serial directive on queries that use export/import to ensure sequential execution!
+ *
+ * @returns Resolver middleware function
  */
 export function createExportMiddleware(): ResolverMiddleware {
   return (next: ResolverFn) => {
@@ -54,46 +54,39 @@ export function createExportMiddleware(): ResolverMiddleware {
 
       const exportStore = context.exportStore as ExportStore;
 
-      // STEP 1: Resolve any export variables in arguments (before execution)
+      // STEP 1: Resolve export variables in arguments (with serial directive, this works reliably)
       let resolvedArgs = args;
       if (args && typeof args === "object" && hasExportVariables(args)) {
         try {
-          resolvedArgs = await resolveExportVariables(args, exportStore);
+          resolvedArgs = await resolveExportVariables(args, exportStore, 10000); // 10s timeout
         } catch (error) {
-          // If timeout or error waiting for export, check if we can provide a default
-          if (
-            error instanceof Error &&
-            error.message.includes("Timeout waiting for export variable")
-          ) {
-            // For now, throw the original error, but this could be enhanced to provide defaults
-            throw new Error(
-              `Failed to resolve export variables in ${info.parentType.name}.${info.fieldName}: ${error.message}. Consider using a fallback value or checking if the exported field can return null.`
-            );
-          }
           throw new Error(
-            `Failed to resolve export variables in ${info.parentType.name}.${
+            `Export variable resolution failed in ${info.parentType.name}.${
               info.fieldName
             }: ${error instanceof Error ? error.message : String(error)}`
           );
         }
       }
 
-      // STEP 2: Execute the actual resolver with resolved arguments
+      // STEP 2: Execute the resolver with resolved arguments
       const result = await next(source, resolvedArgs, context, info);
 
-      // STEP 3: Check if any fields in the result have @export directive (after execution)
+      // STEP 3: Store exported values from the result
       const fieldNode = info.fieldNodes[0];
       if (!fieldNode) return result;
 
-      // 3.1 Check export on the field itself (scalar or object)
+      // Check if the field itself has @export directive
       const selfExportName = getExportDirective(fieldNode);
-      if (selfExportName && result !== undefined) {
-        // If result is an array, accumulate; otherwise set
+      if (selfExportName && result !== undefined && result !== null) {
         if (Array.isArray(result)) {
-          result.forEach((value) =>
-            exportStore.accumulate(selfExportName, value)
-          );
+          // For arrays, accumulate each item
+          result.forEach((value) => {
+            if (value !== undefined && value !== null) {
+              exportStore.accumulate(selfExportName, value);
+            }
+          });
         } else {
+          // For single values, just set
           exportStore.set(selfExportName, result);
         }
       }

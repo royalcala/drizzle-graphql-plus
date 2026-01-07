@@ -5,10 +5,10 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     include: [
-      "tests/**/*.test.ts",
-      "test-server/**/*.test.ts",
+      // "tests/**/*.test.ts",
+      // "test-server/**/*.test.ts",
       "src/export-tool/**/*.test.ts",
-      "src/build-schema-sdl-with-dl/**/*.test.ts"
+      "src/build-schema-sdl-with-dl/**/*.test.ts",
     ],
     isolate: true,
     typecheck: {

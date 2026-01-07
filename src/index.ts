@@ -38,11 +38,22 @@ export {
   useDataLoaderCleanupOnly,
 } from "./build-schema-sdl-with-dl/generator/utils/envelop-plugin";
 
+// Export Serial Directive
+export {
+  createSerialMiddleware,
+  createSerialResolverMap,
+  serialDirectiveTypeDefs,
+  SerialExecutor,
+} from "./serial-directive";
+
+// Export Export Directive
 export {
   createExportMiddleware,
-  makeScalarAcceptExports,
+  createExportResolverMap,
   exportDirectiveTypeDefs,
-} from "./export-tool";
+  ExportStore,
+  makeScalarAcceptExports,
+} from "./export-directive";
 export { setCustomGraphQL, setCustomGraphQLTypes } from "./helpers";
 export type { GraphQLFieldConfig } from "./helpers";
 export * from "./types";

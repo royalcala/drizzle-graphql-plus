@@ -3,12 +3,12 @@ import { composeResolvers } from "@graphql-tools/resolvers-composition";
 import {
   createExportMiddleware,
   makeScalarAcceptExports,
-} from "../../../src/export-tool";
-import { 
-  buildSchemaSDL, 
+} from "../../export-directive";
+import {
+  buildSchemaSDL,
   makeExecutableSchema,
   exportDirectiveTypeDefs,
-  commonScalars
+  commonScalars,
 } from "../index";
 import type { AnyDrizzleDB } from "../../types";
 
@@ -33,8 +33,8 @@ export function createStandardSchema(db: AnyDrizzleDB<any>) {
   const fullTypeDefs = [
     exportDirectiveTypeDefs,
     `enum ReactionType { LIKE DISLIKE }`,
-    typeDefs
-  ].join('\n\n');
+    typeDefs,
+  ].join("\n\n");
 
   // 3. Compose all resolvers explicitly - always the same
   const composedResolvers = composeResolvers(

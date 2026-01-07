@@ -31,8 +31,7 @@ export class ExportStore {
 
   /**
    * Accumulate values into an array with deduplication
-   * First call initializes an array, subsequent calls add to it
-   * Use this when the same export variable is used in multiple array items
+   * Works great with @serial directive to build arrays from sequential field exports
    */
   accumulate(name: string, value: any): void {
     // Initialize accumulator set if needed
@@ -42,27 +41,30 @@ export class ExportStore {
 
     const accumulator = this.accumulators.get(name)!;
 
-    // Handle arrays - flatten and add each item
-    if (Array.isArray(value)) {
-      value.forEach((item) => {
-        if (item !== null && item !== undefined) {
-          accumulator.add(item);
-        }
-      });
-    } else if (value !== null && value !== undefined) {
-      // Handle single values
-      accumulator.add(value);
+    // Add the value to the accumulator (with deduplication via Set)
+    if (value !== null && value !== undefined) {
+      if (Array.isArray(value)) {
+        // If value is an array, add each item individually
+        value.forEach((item) => {
+          if (item !== null && item !== undefined) {
+            accumulator.add(item);
+          }
+        });
+      } else {
+        // Single value
+        accumulator.add(value);
+      }
     }
 
-    // Update store with current accumulated array
+    // Convert accumulated Set to Array and store it
     const accumulatedArray = Array.from(accumulator);
     this.store.set(name, accumulatedArray);
 
-    // Notify any waiting promises with the updated array
+    // Notify any waiting promises with the current accumulated array
     const callbacks = this.pending.get(name);
     if (callbacks) {
       callbacks.forEach((resolve) => resolve(accumulatedArray));
-      // Don't delete pending - more values might come
+      // Don't delete pending - more accumulation might happen
     }
   }
 
