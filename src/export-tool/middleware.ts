@@ -61,15 +61,18 @@ export function createExportMiddleware(): ResolverMiddleware {
           resolvedArgs = await resolveExportVariables(args, exportStore);
         } catch (error) {
           // If timeout or error waiting for export, check if we can provide a default
-          if (error instanceof Error && error.message.includes("Timeout waiting for export variable")) {
+          if (
+            error instanceof Error &&
+            error.message.includes("Timeout waiting for export variable")
+          ) {
             // For now, throw the original error, but this could be enhanced to provide defaults
             throw new Error(
-              `Failed to resolve export variables in ${info.parentType.name}.${info.fieldName
-              }: ${error.message}. Consider using a fallback value or checking if the exported field can return null.`
+              `Failed to resolve export variables in ${info.parentType.name}.${info.fieldName}: ${error.message}. Consider using a fallback value or checking if the exported field can return null.`
             );
           }
           throw new Error(
-            `Failed to resolve export variables in ${info.parentType.name}.${info.fieldName
+            `Failed to resolve export variables in ${info.parentType.name}.${
+              info.fieldName
             }: ${error instanceof Error ? error.message : String(error)}`
           );
         }
@@ -85,7 +88,14 @@ export function createExportMiddleware(): ResolverMiddleware {
       // 3.1 Check export on the field itself (scalar or object)
       const selfExportName = getExportDirective(fieldNode);
       if (selfExportName && result !== undefined) {
-        exportStore.set(selfExportName, result);
+        // If result is an array, accumulate; otherwise set
+        if (Array.isArray(result)) {
+          result.forEach((value) =>
+            exportStore.accumulate(selfExportName, value)
+          );
+        } else {
+          exportStore.set(selfExportName, result);
+        }
       }
 
       // 3.2 Check nested exports (recursively) via selection set
@@ -93,11 +103,13 @@ export function createExportMiddleware(): ResolverMiddleware {
         if (Array.isArray(result)) {
           result.forEach((item) => {
             if (item && typeof item === "object") {
-              processExports(item, fieldNode.selectionSet!, exportStore);
+              // Mark that we're processing array items
+              processExports(item, fieldNode.selectionSet!, exportStore, true);
             }
           });
         } else if (typeof result === "object") {
-          processExports(result, fieldNode.selectionSet, exportStore);
+          // Single object, not an array item
+          processExports(result, fieldNode.selectionSet, exportStore, false);
         }
       }
 

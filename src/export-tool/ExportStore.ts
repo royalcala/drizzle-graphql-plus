@@ -12,6 +12,7 @@
 export class ExportStore {
   private store: Map<string, any> = new Map();
   private pending: Map<string, Array<(value: any) => void>> = new Map();
+  private accumulators: Map<string, Set<any>> = new Map();
 
   /**
    * Store a value for later retrieval
@@ -25,6 +26,43 @@ export class ExportStore {
     if (callbacks) {
       callbacks.forEach((resolve) => resolve(value));
       this.pending.delete(name);
+    }
+  }
+
+  /**
+   * Accumulate values into an array with deduplication
+   * First call initializes an array, subsequent calls add to it
+   * Use this when the same export variable is used in multiple array items
+   */
+  accumulate(name: string, value: any): void {
+    // Initialize accumulator set if needed
+    if (!this.accumulators.has(name)) {
+      this.accumulators.set(name, new Set());
+    }
+
+    const accumulator = this.accumulators.get(name)!;
+
+    // Handle arrays - flatten and add each item
+    if (Array.isArray(value)) {
+      value.forEach((item) => {
+        if (item !== null && item !== undefined) {
+          accumulator.add(item);
+        }
+      });
+    } else if (value !== null && value !== undefined) {
+      // Handle single values
+      accumulator.add(value);
+    }
+
+    // Update store with current accumulated array
+    const accumulatedArray = Array.from(accumulator);
+    this.store.set(name, accumulatedArray);
+
+    // Notify any waiting promises with the updated array
+    const callbacks = this.pending.get(name);
+    if (callbacks) {
+      callbacks.forEach((resolve) => resolve(accumulatedArray));
+      // Don't delete pending - more values might come
     }
   }
 
@@ -66,7 +104,9 @@ export class ExportStore {
               // Resolve with null instead of rejecting
               resolve(null);
             } else {
-              reject(new Error(`Timeout waiting for export variable "${name}"`));
+              reject(
+                new Error(`Timeout waiting for export variable "${name}"`)
+              );
             }
           }
         }
@@ -87,6 +127,7 @@ export class ExportStore {
   clear(): void {
     this.store.clear();
     this.pending.clear();
+    this.accumulators.clear();
   }
 
   /**

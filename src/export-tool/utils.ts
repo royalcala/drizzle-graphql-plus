@@ -44,7 +44,12 @@ export async function resolveExportVariables(
           const varName = getVariableName(item)!;
           return await exportStore.waitFor(varName, timeout, allowNull);
         } else if (typeof item === "object" && item !== null) {
-          return await resolveExportVariables(item, exportStore, timeout, allowNull);
+          return await resolveExportVariables(
+            item,
+            exportStore,
+            timeout,
+            allowNull
+          );
         }
         return item;
       })
@@ -175,11 +180,16 @@ export function hasExportVariables(args: any): boolean {
 
 /**
  * Recursively process result object against selection set to find and store exports
+ * @param result The result object from the resolver
+ * @param selectionSet The GraphQL selection set
+ * @param exportStore The export store to store values
+ * @param isArrayItem True if this result is an item from an array (enables accumulation)
  */
 export function processExports(
   result: any,
   selectionSet: import("graphql").SelectionSetNode,
-  exportStore: ExportStore
+  exportStore: ExportStore,
+  isArrayItem = false
 ): void {
   if (!result || !selectionSet) return;
 
@@ -197,7 +207,12 @@ export function processExports(
     // 1. Check for @export on this field
     const exportName = getExportDirective(selection);
     if (exportName) {
-      exportStore.set(exportName, value);
+      // Use accumulate for array items, set for single values
+      if (isArrayItem) {
+        exportStore.accumulate(exportName, value);
+      } else {
+        exportStore.set(exportName, value);
+      }
     }
 
     // 2. Recurse if nested selection exists and value is traversable
@@ -205,11 +220,13 @@ export function processExports(
       if (Array.isArray(value)) {
         value.forEach((item) => {
           if (item && typeof item === "object") {
-            processExports(item, selection.selectionSet!, exportStore);
+            // Mark that we're processing array items
+            processExports(item, selection.selectionSet!, exportStore, true);
           }
         });
       } else if (typeof value === "object") {
-        processExports(value, selection.selectionSet, exportStore);
+        // Keep isArrayItem flag for nested objects within array items
+        processExports(value, selection.selectionSet, exportStore, isArrayItem);
       }
     }
   }

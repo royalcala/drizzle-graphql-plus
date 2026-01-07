@@ -52,10 +52,11 @@ export const reaction = sqliteTable("reaction", {
     .primaryKey()
     .$defaultFn(() => generateUlid())
     .notNull(),
-  commentId: text("comment_id")
+  postId: text("post_id")
     .notNull()
-    .references(() => comment.id),
-  userId: text("user_id")
+    .references(() => post.id),
+  commentId: text("comment_id").references(() => comment.id),
+  authorId: text("author_id")
     .notNull()
     .references(() => user.id),
   type: text("type").$type<ReactionTypes>().notNull(),
@@ -114,6 +115,7 @@ export const postRelations = relations(post, ({ one, many }) => ({
     references: [user.id],
   }),
   comments: many(comment),
+  reactions: many(reaction),
   city: one(city, {
     fields: [post.cityId],
     references: [city.id],
@@ -146,12 +148,16 @@ export const commentRelations = relations(comment, ({ one, many }) => ({
 }));
 
 export const reactionRelations = relations(reaction, ({ one }) => ({
+  post: one(post, {
+    fields: [reaction.postId],
+    references: [post.id],
+  }),
   comment: one(comment, {
     fields: [reaction.commentId],
     references: [comment.id],
   }),
-  user: one(user, {
-    fields: [reaction.userId],
+  author: one(user, {
+    fields: [reaction.authorId],
     references: [user.id],
   }),
 }));

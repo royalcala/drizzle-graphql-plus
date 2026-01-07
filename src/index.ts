@@ -1,15 +1,15 @@
-export { buildSchema } from "./buildSchema";
-export { buildSchemaSDL } from "./buildSchemaSDL/index";
-export type {
-  BuildSchemaSDLResult,
-  ColumnFilter,
-  WhereInput,
-  OrderByInput,
-  QueryArgs,
-  InsertInput,
-  UpdateInput,
-  Capitalize,
-} from "./buildSchemaSDL/index";
+// export { buildSchema } from "./buildSchema";
+// export { buildSchemaSDL } from "./buildSchemaSDL[DEPRECATED]/index";
+// export type {
+//   BuildSchemaSDLResult,
+//   ColumnFilter,
+//   WhereInput,
+//   OrderByInput,
+//   QueryArgs,
+//   InsertInput,
+//   UpdateInput,
+//   Capitalize,
+// } from "./buildSchemaSDL[DEPRECATED]/index";
 
 // Export DataLoader-only version
 export { buildSchemaSDL as buildSchemaSDLWithDataLoader } from "./build-schema-sdl-with-dl/index";
@@ -38,7 +38,11 @@ export {
   useDataLoaderCleanupOnly,
 } from "./build-schema-sdl-with-dl/generator/utils/envelop-plugin";
 
-export { createExportMiddleware, makeScalarAcceptExports, exportDirectiveTypeDefs } from "./export-tool";
+export {
+  createExportMiddleware,
+  makeScalarAcceptExports,
+  exportDirectiveTypeDefs,
+} from "./export-tool";
 export { setCustomGraphQL, setCustomGraphQLTypes } from "./helpers";
 export type { GraphQLFieldConfig } from "./helpers";
 export * from "./types";
