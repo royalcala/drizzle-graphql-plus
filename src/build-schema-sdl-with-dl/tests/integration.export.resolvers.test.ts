@@ -1,16 +1,8 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect } from "vitest";
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import * as schema from "./schema";
-import {
-  user,
-  post,
-  comment,
-  reaction,
-  userProfile,
-  city,
-  sport,
-} from "./schema";
+import { user, post, comment, reaction, city, sport } from "./schema";
 import { ulid as generateUlid } from "ulid";
 import { eq } from "drizzle-orm";
 import { executeGraphQLQuery } from "./shared-envelop";

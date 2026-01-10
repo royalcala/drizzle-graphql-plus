@@ -46,10 +46,10 @@ export class SerialExecutor {
     const queue = this.executionQueue.get(parentPath) || [];
 
     // Create a promise that waits for all previous promises in the queue to complete
-    const serialPromise =
-      queue.length > 0
-        ? queue[queue.length - 1].then(() => resolverPromise())
-        : resolverPromise();
+    const lastPromise = queue.length > 0 ? queue[queue.length - 1] : null;
+    const serialPromise = lastPromise
+      ? lastPromise.then(() => resolverPromise())
+      : resolverPromise();
 
     // Add this promise to the queue
     queue.push(serialPromise);

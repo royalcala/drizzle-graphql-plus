@@ -9,7 +9,7 @@
     "b": "pnpm build",
     "pack": "rm -f *.tgz && (cd dist && npm pack --pack-destination ..) && mv drizzle-graphql-plus-*.tgz package.tgz",
     "publish": "npm publish package.tgz --access public --no-provenance",
-    "build:pack:publish": "pnpm build && (cd dist && npm pack --pack-destination ..) && mv drizzle-graphql-plus-*.tgz package.tgz && npm publish package.tgz --access public --no-provenance",
+    "build:pack:publish": "pnpm run test && pnpm build && (cd dist && npm pack --pack-destination ..) && mv drizzle-graphql-plus-*.tgz package.tgz && npm publish package.tgz --access public --no-provenance",
     "test": "vitest run",
     "test:dataloader": "npx drizzle-kit push --dialect=sqlite --schema=./src/build-schema-sdl-with-dl/tests/schema.ts --url=file:src/build-schema-sdl-with-dl/tests/test-resolvers.db && vitest run src/build-schema-sdl-with-dl/tests/resolvers.test.ts",
     "test:integration:serial": "npx drizzle-kit push --dialect=sqlite --schema=./src/build-schema-sdl-with-dl/tests/schema.ts --url=file:src/build-schema-sdl-with-dl/tests/test-serial-resolvers.db && vitest run src/build-schema-sdl-with-dl/tests/integration.serial.resolvers.test.ts",

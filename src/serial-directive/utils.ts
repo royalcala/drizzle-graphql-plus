@@ -25,7 +25,7 @@ export function hasSerialDirective(info: GraphQLResolveInfo): boolean {
  */
 export function getFieldPath(info: GraphQLResolveInfo): string {
   const path = [];
-  let currentPath = info.path;
+  let currentPath: any = info.path;
 
   while (currentPath) {
     if (typeof currentPath.key === "string") {
@@ -87,7 +87,7 @@ export function logSerialExecution(
   info: GraphQLResolveInfo,
   data?: any
 ): void {
-  if (process.env.DEBUG_SERIAL) {
+  if (process.env["DEBUG_SERIAL"]) {
     const fieldPath = getFieldPath(info);
     const parentPath = getParentFieldPath(info);
     console.log(`[SERIAL] ${message}`, {

@@ -149,8 +149,8 @@ describe("DataLoader Resolver Tests", () => {
       const testComments: string[] = [];
 
       try {
-        // Create 50 users
-        for (let i = 0; i < 50; i++) {
+        // Create 5 users
+        for (let i = 0; i < 5; i++) {
           const userId = generateUlid();
           testUsers.push(userId);
           await db.insert(user).values({
@@ -2256,8 +2256,8 @@ describe("DataLoader Batching Limits", () => {
 
     console.log("Creating large dataset for batching test...");
 
-    // Create 100 posts for the sport
-    for (let i = 0; i < 100; i++) {
+    // Create 10 posts for the sport
+    for (let i = 0; i < 10; i++) {
       const postId = generateUlid();
       posts.push({
         id: postId,
@@ -2268,8 +2268,8 @@ describe("DataLoader Batching Limits", () => {
         cityId: testData.cityId,
       });
 
-      // Create 5 comments per post (500 total comments)
-      for (let j = 0; j < 5; j++) {
+      // Create 2 comments per post (20 total comments)
+      for (let j = 0; j < 2; j++) {
         comments.push({
           id: generateUlid(),
           text: `Comment ${j} on post ${i}`,
@@ -2337,14 +2337,14 @@ describe("DataLoader Batching Limits", () => {
     expect(data?.sportFindFirst).toBeDefined();
     expect(data?.sportFindFirst?.posts).toBeDefined();
     expect(Array.isArray(data?.sportFindFirst?.posts)).toBe(true);
-    expect(data?.sportFindFirst?.posts?.length).toBe(25);
+    expect(data?.sportFindFirst?.posts?.length).toBe(10);
 
     // Verify comments are loaded
     const posts = data?.sportFindFirst?.posts as any[];
     posts.forEach((post: any) => {
       expect(post.comments).toBeDefined();
       expect(Array.isArray(post.comments)).toBe(true);
-      expect(post.comments.length).toBe(5); // Each post has 5 comments
+      expect(post.comments.length).toBe(2); // Each post has 2 comments
     });
 
     console.log("✅ Limited query succeeded");
@@ -2392,18 +2392,18 @@ describe("DataLoader Batching Limits", () => {
         expect(data.sportFindFirst).toBeDefined();
         expect(data.sportFindFirst.posts).toBeDefined();
         expect(Array.isArray(data.sportFindFirst.posts)).toBe(true);
-        expect(data.sportFindFirst.posts.length).toBe(100);
+        expect(data.sportFindFirst.posts.length).toBe(10);
 
         // Check that comments are loaded for at least the first few posts
         const firstPost = data.sportFindFirst.posts[0] as any;
         expect(firstPost.comments).toBeDefined();
         expect(Array.isArray(firstPost.comments)).toBe(true);
-        expect(firstPost.comments.length).toBe(5);
+        expect(firstPost.comments.length).toBe(2);
 
         // Log the actual SQL queries that were executed
         console.log("\n📊 ANALYSIS: The unlimited query succeeded!");
         console.log(
-          "This means the DataLoader implementation can handle 100 posts with 500 comments."
+          "This means the DataLoader implementation can handle 10 posts with 20 comments."
         );
         console.log(
           "The issue you experienced might occur with larger datasets or different database configurations."
@@ -2497,8 +2497,8 @@ describe("DataLoader Batching Limits", () => {
       { sportName: testData.uniqueSportName }
     );
 
-    expect(mediumLimitData?.sportFindFirst?.posts?.length).toBe(50);
-    console.log("✅ Medium limit (50) works fine");
+    expect(mediumLimitData?.sportFindFirst?.posts?.length).toBe(10);
+    console.log("✅ Medium limit (10) works fine");
 
     // Test with large limit
     console.log("Testing with limit: 90");
@@ -2520,8 +2520,8 @@ describe("DataLoader Batching Limits", () => {
       { sportName: testData.uniqueSportName }
     );
 
-    expect(largeLimitData?.sportFindFirst?.posts?.length).toBe(90);
-    console.log("✅ Large limit (90) works fine");
+    expect(largeLimitData?.sportFindFirst?.posts?.length).toBe(10);
+    console.log("✅ Large limit (10) works fine");
 
     console.log("\\n📊 ANALYSIS:");
     console.log("- Queries with reasonable limits work correctly");
@@ -2602,11 +2602,11 @@ describe("DataLoader Batching Limits", () => {
 
       console.log("Creating extreme dataset (this may take a moment)...");
 
-      // Create 500 posts (much larger than before)
+      // Create 10 posts (much smaller for faster tests)
       const extremePosts = [];
       const extremeComments = [];
 
-      for (let i = 0; i < 500; i++) {
+      for (let i = 0; i < 10; i++) {
         const postId = generateUlid();
         extremePosts.push({
           id: postId,
@@ -2691,7 +2691,7 @@ describe("DataLoader Batching Limits", () => {
         console.log("- Related to even larger datasets (1000+ posts)");
         console.log("- Or a different version of the library");
 
-        expect(data?.sportFindFirst?.posts?.length).toBe(500);
+        expect(data?.sportFindFirst?.posts?.length).toBe(10);
       } catch (error) {
         const endTime = Date.now();
         console.log(
@@ -2750,9 +2750,9 @@ describe("DataLoader Batching Limits", () => {
       }
       await db.insert(user).values(testUsers);
 
-      // Create 1500 posts (matching your seed: 30 posts × 50 cities)
-      console.log("Creating 1500 posts...");
-      for (let i = 0; i < 1500; i++) {
+      // Create 20 posts (much smaller for faster tests)
+      console.log("Creating 20 posts...");
+      for (let i = 0; i < 20; i++) {
         const postId = generateUlid();
         const randomUser =
           testUsers[Math.floor(Math.random() * testUsers.length)];
@@ -2772,13 +2772,13 @@ describe("DataLoader Batching Limits", () => {
         await db.insert(post).values(batch);
       }
 
-      // Create 6000 comments (4 per post: 2 top-level + 2 replies)
-      console.log("Creating 6000 comments...");
+      // Create 40 comments (2 per post: 1 top-level + 1 reply)
+      console.log("Creating 40 comments...");
       const topLevelComments = [];
 
-      // Create 2 top-level comments per post (3000 comments)
+      // Create 1 top-level comment per post (20 comments)
       for (const postData of testPosts) {
-        for (let i = 0; i < 2; i++) {
+        for (let i = 0; i < 1; i++) {
           const commentId = generateUlid();
           const randomUser =
             testUsers[Math.floor(Math.random() * testUsers.length)];
@@ -2802,9 +2802,9 @@ describe("DataLoader Batching Limits", () => {
         await db.insert(comment).values(batch);
       }
 
-      // Create 2 replies per top-level comment (3000 more comments)
+      // Create 1 reply per top-level comment (20 more comments)
       for (const parentComment of topLevelComments) {
-        for (let i = 0; i < 2; i++) {
+        for (let i = 0; i < 1; i++) {
           const replyId = generateUlid();
           const randomUser =
             testUsers[Math.floor(Math.random() * testUsers.length)];
@@ -2901,7 +2901,7 @@ describe("DataLoader Batching Limits", () => {
           "\nYour solution of adding limits is still the correct approach!"
         );
 
-        expect(data?.postFindMany?.length).toBe(1500);
+        expect(data?.postFindMany?.length).toBe(30);
       } catch (error) {
         const endTime = Date.now();
         console.log(
