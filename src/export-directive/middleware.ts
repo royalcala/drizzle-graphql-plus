@@ -5,6 +5,8 @@ import {
   hasExportVariables,
   getExportDirective,
   processExports,
+  processExportsSync,
+  resolveGraphQLVariables,
 } from "./utils";
 
 /**
@@ -47,12 +49,45 @@ export function createExportMiddleware(): ResolverMiddleware {
       context: any,
       info: GraphQLResolveInfo
     ) => {
+      // console.log("🔧 Export middleware called for field:", info.fieldName);
+
       // Initialize ExportStore in context if not already present
       if (!context.exportStore) {
         context.exportStore = new ExportStore();
+        // console.log("🔧 Created new ExportStore in context");
+      } else {
+        // console.log("🔧 Using existing ExportStore from context");
       }
 
       const exportStore = context.exportStore as ExportStore;
+
+      // Store reference to execution context for variable updates
+      // Try to access the actual GraphQL variables being used from multiple possible locations
+      if (!context._graphqlVariables) {
+        // Check various locations where variables might be stored in the execution context
+        const variableValues =
+          (info as any).variableValues ||
+          (context as any).variableValues ||
+          (info.operation as any).variableValues ||
+          ((info as any).executionContext &&
+            (info as any).executionContext.variableValues) ||
+          ((info as any).rootValue && (info as any).rootValue.variableValues);
+
+        if (variableValues) {
+          context._graphqlVariables = variableValues;
+          console.log(
+            "🔍 Found GraphQL variables at execution time:",
+            Object.keys(variableValues)
+          );
+        } else {
+          console.log(
+            "🚨 Could not locate GraphQL variables in execution context"
+          );
+          // Log available properties to debug
+          console.log("🔍 Available info properties:", Object.keys(info));
+          console.log("🔍 Available context properties:", Object.keys(context));
+        }
+      }
 
       // STEP 1: Resolve export variables in arguments (with serial directive, this works reliably)
       let resolvedArgs = args;
@@ -68,6 +103,18 @@ export function createExportMiddleware(): ResolverMiddleware {
         }
       }
 
+      // STEP 1.5: Special handling for GraphQL variables that might have been updated by exports
+      if (args && typeof args === "object" && context._graphqlVariables) {
+        // Check if any args contain values that might be GraphQL variables that were updated
+        // Pass the context directly for export store access
+        const infoWithContext = { ...info, context };
+        resolvedArgs = await resolveGraphQLVariables(
+          resolvedArgs,
+          context._graphqlVariables,
+          infoWithContext
+        );
+      }
+
       // STEP 2: Execute the resolver with resolved arguments
       const result = await next(source, resolvedArgs, context, info);
 
@@ -75,36 +122,8 @@ export function createExportMiddleware(): ResolverMiddleware {
       const fieldNode = info.fieldNodes[0];
       if (!fieldNode) return result;
 
-      // Check if the field itself has @export directive
-      const selfExportName = getExportDirective(fieldNode);
-      if (selfExportName && result !== undefined && result !== null) {
-        if (Array.isArray(result)) {
-          // For arrays, accumulate each item
-          result.forEach((value) => {
-            if (value !== undefined && value !== null) {
-              exportStore.accumulate(selfExportName, value);
-            }
-          });
-        } else {
-          // For single values, just set
-          exportStore.set(selfExportName, result);
-        }
-      }
-
-      // 3.2 Check nested exports (recursively) via selection set
-      if (fieldNode.selectionSet && result !== undefined && result !== null) {
-        if (Array.isArray(result)) {
-          result.forEach((item) => {
-            if (item && typeof item === "object") {
-              // Mark that we're processing array items
-              processExports(item, fieldNode.selectionSet!, exportStore, true);
-            }
-          });
-        } else if (typeof result === "object") {
-          // Single object, not an array item
-          processExports(result, fieldNode.selectionSet, exportStore, false);
-        }
-      }
+      // Process exports SYNCHRONOUSLY to ensure they complete before other resolvers start
+      await processExportsSync(result, fieldNode, exportStore, context);
 
       return result;
     };

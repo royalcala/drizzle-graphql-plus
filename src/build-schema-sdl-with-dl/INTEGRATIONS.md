@@ -249,7 +249,7 @@ src/
 └── build-schema-sdl-with-dl/
     └── tests/
         ├── integration.serial.resolvers.test.ts    # Serial tests
-        ├── integration.export.resolvers.test.ts    # Export tests
+        ├── export-import-chains.test.ts            # Export-import chain tests (comprehensive)
         ├── shared-serial-config.ts                 # Serial config
         └── schema.ts                               # Test schema
 ```
