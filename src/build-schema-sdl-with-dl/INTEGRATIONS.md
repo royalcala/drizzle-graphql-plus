@@ -261,41 +261,44 @@ src/
 ### Complex Data Fetching
 
 ```graphql
-query sportPostsWithCityFilter($sportName: String!, $citySlug: String!)
-@serial {
-  # Step 1: Get city by slug
-  city: cityFindFirst(where: { slug: { eq: $citySlug } }) {
-    id @export(as: "cityId")
+query sportPostsWithCityFilter(
+  $sportName: String!
+  $citySlug: String!
+  $_cityId: ID = ""
+  $_sportId: ID = ""
+  $_usersIds: [ID!] = [""]
+) @serial {
+  # Step 1: Get city by slug and export its ID
+  cityFindFirst(where: { slug: { eq: $citySlug } }) {
+    id @export(as: "$_cityId")
     name
   }
 
-  # Step 2: Get sport posts in that city
-  sport: sportFindFirst(where: { name: { eq: $sportName } }) {
-    posts(where: { cityId: { eq: "$_cityId" } }) {
-      authorId @export(as: "postAuthorIds")
+  # Step 2: Get sport and use both exports to fetch posts
+  sportFindFirst(where: { name: { eq: $sportName } }) {
+    id @export(as: "$_sportId")
+    name
+  }
+
+  postFindMany(
+    limit: 15
+    where: { cityId: { eq: $_cityId }, sportId: { eq: $_sportId } }
+  ) {
+    id
+    authorId @export(as: "$_usersIds")
+    reactions {
+      authorId @export(as: "$_usersIds")
+    }
+    comments {
+      userId @export(as: "$_usersIds")
       reactions {
-        authorId @export(as: "reactionAuthorIds")
-      }
-      comments {
-        userId @export(as: "commentAuthorIds")
-        reactions {
-          authorId @export(as: "commentReactionAuthorIds")
-        }
+        authorId @export(as: "$_usersIds")
       }
     }
   }
 
-  # Step 3: Get all unique users involved
-  users: userFindMany(
-    where: {
-      OR: [
-        { id: { inArray: "$_postAuthorIds" } }
-        { id: { inArray: "$_reactionAuthorIds" } }
-        { id: { inArray: "$_commentAuthorIds" } }
-        { id: { inArray: "$_commentReactionAuthorIds" } }
-      ]
-    }
-  ) {
+  # Step 3: Get all unique users involved (authors + reactors + commenters)
+  userFindMany(where: { id: { inArray: $_usersIds } }) {
     id
     name
     email

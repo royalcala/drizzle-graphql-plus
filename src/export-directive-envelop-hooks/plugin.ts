@@ -4,6 +4,8 @@ import {
   execute as defaultExecute,
   getArgumentValues,
   GraphQLObjectType,
+  Kind,
+  type ValueNode,
 } from "graphql";
 import { ExportStore } from "./ExportStore";
 import {
@@ -49,6 +51,17 @@ export const useExportDirective = (): Plugin => {
       const createWrappedResolver = (
         originalResolver: GraphQLFieldResolver<any, any> | undefined
       ): GraphQLFieldResolver<any, any> => {
+        const valueNodeHasVariable = (node: ValueNode): boolean => {
+          if (node.kind === Kind.VARIABLE) return true;
+          if (node.kind === Kind.LIST) {
+            return node.values.some((v) => valueNodeHasVariable(v));
+          }
+          if (node.kind === Kind.OBJECT) {
+            return node.fields.some((f) => valueNodeHasVariable(f.value));
+          }
+          return false;
+        };
+
         return async (source, fieldArgs, fieldContext, info) => {
           // Use the shared context (args.contextValue is passed as fieldContext here usually)
           const ctx = fieldContext as any;
@@ -66,65 +79,13 @@ export const useExportDirective = (): Plugin => {
             });
           }
 
-          // STEP 0: Re-resolve arguments
-          let currentArgs = fieldArgs;
-          if (
-            ctx._graphqlVariables &&
-            info.parentType instanceof GraphQLObjectType
-          ) {
-            const fieldNode = info.fieldNodes[0];
-            if (!fieldNode) {
-              if (isComments) {
-                logExportExecution("DEBUG fieldNode NOT FOUND");
-              }
-            } else {
-              const fieldName = fieldNode.name.value;
-              const fieldDef = info.parentType.getFields()[fieldName];
-
-              // Log if fieldDef found
-              if (isComments && !fieldDef) {
-                logExportExecution("DEBUG fieldDef NOT FOUND");
-              }
-
-              if (fieldDef) {
-                try {
-                  if (isComments) {
-                    logExportExecution("DEBUG calling getArgumentValues", {
-                      fieldNodeName: fieldNode.name.value,
-                      fieldDefName: fieldDef.name,
-                      variablesKeys: Object.keys(ctx._graphqlVariables || {}),
-                    });
-                  }
-
-                  const freshArgs = getArgumentValues(
-                    fieldDef,
-                    fieldNode,
-                    ctx._graphqlVariables
-                  );
-
-                  if (isComments) {
-                    logExportExecution("DEBUG getArgumentValues result", {
-                      freshArgsKeys: Object.keys(freshArgs || {}),
-                      freshArgs: JSON.stringify(freshArgs),
-                    });
-                  }
-
-                  if (freshArgs) {
-                    currentArgs = freshArgs;
-                  }
-                } catch (e) {
-                  logExportExecution(
-                    "Failed to re-resolve args for " + info.fieldName,
-                    e
-                  );
-                }
-              }
-            }
-          }
-
-          // STEP 1: Resolve export variables
-          let resolvedArgs = currentArgs;
           const fieldNode = info.fieldNodes[0];
+
+          // STEP 0: Start from the original field arguments
+          let currentArgs = fieldArgs;
+          let resolvedArgs = currentArgs;
+
+          // STEP 1: Resolve GraphQL variable placeholders against the ExportStore
 
           if (currentArgs && typeof currentArgs === "object") {
             if (fieldNode) {
@@ -161,6 +122,67 @@ export const useExportDirective = (): Plugin => {
                     info.fieldName +
                     ": " +
                     (error instanceof Error ? error.message : String(error))
+                );
+              }
+            }
+          }
+
+          // STEP 1b: After exports have updated _graphqlVariables,
+          // recompute arguments from the latest GraphQL variables for
+          // fields that actually reference variables. This ensures
+          // accumulator-style exports (like array IDs) use the full
+          // collected set rather than only the first value resolved
+          // via ExportStore.waitFor.
+          if (
+            ctx._graphqlVariables &&
+            info.parentType instanceof GraphQLObjectType &&
+            info.fieldName === "userFindMany" &&
+            fieldNode &&
+            fieldNode.arguments &&
+            fieldNode.arguments.some((arg) => valueNodeHasVariable(arg.value))
+          ) {
+            const fieldName = fieldNode.name.value;
+            const fieldDef = info.parentType.getFields()[fieldName];
+
+            if (isComments && !fieldDef) {
+              logExportExecution("DEBUG fieldDef NOT FOUND (post-exports)");
+            }
+
+            if (fieldDef) {
+              try {
+                if (isComments) {
+                  logExportExecution("DEBUG re-calling getArgumentValues", {
+                    fieldNodeName: fieldNode.name.value,
+                    fieldDefName: fieldDef.name,
+                    variablesKeys: Object.keys(ctx._graphqlVariables || {}),
+                  });
+                }
+
+                const freshArgsAfterExports = getArgumentValues(
+                  fieldDef,
+                  fieldNode,
+                  ctx._graphqlVariables
+                );
+
+                if (freshArgsAfterExports) {
+                  resolvedArgs = freshArgsAfterExports;
+                  normalizeFilterOperators(resolvedArgs);
+
+                  if (isComments) {
+                    logExportExecution(
+                      "DEBUG getArgumentValues result (post-exports)",
+                      {
+                        freshArgsKeys: Object.keys(freshArgsAfterExports || {}),
+                        freshArgs: JSON.stringify(freshArgsAfterExports),
+                      }
+                    );
+                  }
+                }
+              } catch (e) {
+                logExportExecution(
+                  "Failed to re-resolve args after exports for " +
+                    info.fieldName,
+                  e
                 );
               }
             }
