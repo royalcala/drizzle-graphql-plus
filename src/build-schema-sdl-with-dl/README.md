@@ -15,8 +15,8 @@ A composable GraphQL schema generator for Drizzle ORM with built-in DataLoader o
 ### Explicit Control Approach (Recommended)
 
 ```typescript
-import { 
-  buildSchemaSDL, 
+import {
+  buildSchemaSDL,
   exportDirectiveTypeDefs,
   commonScalars,
   makeExecutableSchema,
@@ -31,9 +31,9 @@ const { typeDefs, resolvers } = buildSchemaSDL(db);
 // 2. Create executable schema with explicit typeDefs array
 const executableSchema = makeExecutableSchema({
   typeDefs: [
-    exportDirectiveTypeDefs,              // @export directive
-    `enum Status { ACTIVE INACTIVE }`,    // Your custom types
-    typeDefs                              // Generated schema
+    exportDirectiveTypeDefs, // @export directive
+    `enum Status { ACTIVE INACTIVE }`, // Your custom types
+    typeDefs, // Generated schema
   ],
   resolvers: {
     ...resolvers,
@@ -56,8 +56,8 @@ This gives you full control over what gets included and in what order!
 If you need even more control, you can build everything step by step:
 
 ```typescript
-import { 
-  buildSchemaSDL, 
+import {
+  buildSchemaSDL,
   exportDirectiveTypeDefs,
   commonScalars,
   makeExecutableSchema,
@@ -71,16 +71,16 @@ const allTypeDefs = [
   exportDirectiveTypeDefs,
   `scalar DateTime`,
   `enum Status { ACTIVE INACTIVE }`,
-  typeDefs
+  typeDefs,
 ];
 
 // 3. Create executable schema
 const executableSchema = makeExecutableSchema({
   typeDefs: allTypeDefs,
-  resolvers: { 
-    ...resolvers, 
+  resolvers: {
+    ...resolvers,
     ...commonScalars,
-    DateTime: myDateTimeScalar 
+    DateTime: myDateTimeScalar,
   },
 });
 
@@ -120,10 +120,9 @@ const extendedResolvers = {
 ```typescript
 import { exportDirectiveTypeDefs } from "./index";
 
-const typeDefsWithDirectives = [
-  exportDirectiveTypeDefs,
-  extendedTypeDefs
-].join('\n\n');
+const typeDefsWithDirectives = [exportDirectiveTypeDefs, extendedTypeDefs].join(
+  "\n\n"
+);
 ```
 
 ## Available Exports
@@ -178,6 +177,7 @@ With DataLoader: 2-4 optimized queries (batched)
 ```
 
 For complex nested relations like posts → comments → replies:
+
 - **Traditional**: 1 + N + M queries
 - **With DataLoader**: 4 queries (posts, comments, replies, parent comments)
 
@@ -186,21 +186,18 @@ For complex nested relations like posts → comments → replies:
 ### Apollo Server
 
 ```typescript
-import { ApolloServer } from '@apollo/server';
-import { 
-  buildSchemaSDL, 
+import { ApolloServer } from "@apollo/server";
+import {
+  buildSchemaSDL,
   exportDirectiveTypeDefs,
   commonScalars,
   makeExecutableSchema,
-} from './index';
+} from "./index";
 
 const { typeDefs, resolvers } = buildSchemaSDL(db);
 
 const schema = makeExecutableSchema({
-  typeDefs: [
-    exportDirectiveTypeDefs,
-    typeDefs
-  ],
+  typeDefs: [exportDirectiveTypeDefs, typeDefs],
   resolvers: { ...resolvers, ...commonScalars },
 });
 
@@ -210,25 +207,86 @@ const server = new ApolloServer({ schema });
 ### GraphQL Yoga
 
 ```typescript
-import { createYoga } from 'graphql-yoga';
-import { 
-  buildSchemaSDL, 
+import { createYoga } from "graphql-yoga";
+import {
+  buildSchemaSDL,
   exportDirectiveTypeDefs,
   commonScalars,
   makeExecutableSchema,
-} from './index';
+} from "./index";
 
 const { typeDefs, resolvers } = buildSchemaSDL(db);
 
 const schema = makeExecutableSchema({
-  typeDefs: [
-    exportDirectiveTypeDefs,
-    typeDefs
-  ],
+  typeDefs: [exportDirectiveTypeDefs, typeDefs],
   resolvers: { ...resolvers, ...commonScalars },
 });
 
 const yoga = createYoga({ schema });
+```
+
+### Envelop (with DataLoader and Directives)
+
+If you're using Envelop, you can plug in the built-in DataLoader plugin
+from the generator utilities, and combine it with the serial/export
+directive plugins:
+
+```typescript
+import {
+  buildSchemaSDL,
+  exportDirectiveTypeDefs,
+  commonScalars,
+  makeExecutableSchema,
+} from "./index";
+import { envelop, useEngine, useSchema } from "@envelop/core";
+import { execute as graphqlExecute, subscribe, parse } from "graphql";
+import { GraphQLULID } from "graphql-scalars";
+import { useDataLoaderCleanup } from "./generator/utils/envelop-plugin";
+import {
+  useSerialDirective,
+  serialDirectiveTypeDefs,
+} from "../serial-directive-envelop-hooks";
+import {
+  useExportDirective,
+  exportDirectiveTypeDefs as exportTypeDefsEnvelop,
+  makeScalarAcceptExports,
+} from "../export-directive-envelop-hooks";
+
+// 1. Build schema from Drizzle
+const { typeDefs, resolvers } = buildSchemaSDL(db);
+
+// 2. Flexible ID scalar for export support
+GraphQLULID.name = "ID";
+const FlexibleID = makeScalarAcceptExports(GraphQLULID);
+
+// 3. Compose typeDefs with directives
+const fullTypeDefs = [
+  serialDirectiveTypeDefs,
+  exportTypeDefsEnvelop,
+  exportDirectiveTypeDefs, // legacy export SDL if still needed
+  typeDefs,
+].join("\n\n");
+
+// 4. Create executable schema
+const schema = makeExecutableSchema({
+  typeDefs: fullTypeDefs,
+  resolvers: {
+    ...resolvers,
+    ...commonScalars,
+    ID: FlexibleID,
+  },
+});
+
+// 5. Envelop instance with DataLoader + directives
+const getEnveloped = envelop({
+  plugins: [
+    useEngine({ execute: graphqlExecute, subscribe, parse }),
+    useSchema(schema),
+    useDataLoaderCleanup({ db }),
+    useSerialDirective(),
+    useExportDirective(),
+  ],
+});
 ```
 
 ## Why Separated Architecture?
@@ -236,7 +294,7 @@ const yoga = createYoga({ schema });
 The new composable approach provides several benefits:
 
 1. **Flexibility** - Use only what you need
-2. **Testability** - Each component can be tested independently  
+2. **Testability** - Each component can be tested independently
 3. **Customization** - Easy to add custom types, scalars, and directives
 4. **Server agnostic** - Works with any GraphQL server
 5. **Progressive enhancement** - Start basic, add features as needed
@@ -244,6 +302,7 @@ The new composable approach provides several benefits:
 ## Migration from Complex Multi-Step Approach
 
 **Before (Complex Multi-Step):**
+
 ```typescript
 const { typeDefs, resolvers } = buildSchemaSDL(db);
 const typeDefsWithDirectives = addDirectiveDefinitions(typeDefs);
@@ -254,14 +313,12 @@ const executableSchema = makeExecutableSchema({
 ```
 
 **After (Explicit Control):**
+
 ```typescript
 const { typeDefs, resolvers } = buildSchemaSDL(db);
 
 const schema = makeExecutableSchema({
-  typeDefs: [
-    exportDirectiveTypeDefs,
-    typeDefs
-  ],
+  typeDefs: [exportDirectiveTypeDefs, typeDefs],
   resolvers: { ...resolvers, ...commonScalars },
 });
 ```

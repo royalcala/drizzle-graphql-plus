@@ -1,6 +1,16 @@
 # Export Tool - @export Directive with Flexible Scalar
 
-This directory contains the implementation of the `@export` directive for drizzle-graphql, enabling cross-field dependencies in GraphQL queries.
+> ⚠️ **Deprecated**: This module uses resolver composition via
+> `composeResolvers` and the legacy `export-directive` APIs. New
+> integrations should prefer the Envelop-based hooks in
+> `src/export-directive-envelop-hooks/` (package path
+> `drizzle-graphql-plus/export-directive-envelop-hooks`), which provide
+> `useExportDirective`, `exportDirectiveTypeDefs`, and
+> `makeScalarAcceptExports`.
+
+This directory contains the original implementation of the `@export`
+directive for drizzle-graphql, enabling cross-field dependencies in
+GraphQL queries.
 
 ## ✅ Working Solution: Flexible Scalar + GraphQL Variables + Nested Relations
 

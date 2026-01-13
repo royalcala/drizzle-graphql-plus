@@ -42,9 +42,10 @@ query MyQuery @serial {
 
 ### Implementation Details
 
-- Located in: `src/serial-directive/`
+- Legacy implementation: `src/serial-directive/` (resolver composition, deprecated)
+- Recommended implementation: `src/serial-directive-envelop-hooks/` (Envelop plugin)
 - **SerialExecutor**: Core execution engine managing sequential queue
-- **Middleware**: Resolver composition that wraps field execution
+- **Plugin**: `useSerialDirective` Envelop hook that wraps field execution
 - **Utils**: Helper functions for directive detection and processing
 - **Directive definitions**: GraphQL schema definitions
 
@@ -98,9 +99,10 @@ Central storage system for exported values:
 
 ### Implementation Details
 
-- Located in: `src/export-directive/`
+- Legacy implementation: `src/export-directive/` (resolver composition, deprecated)
+- Recommended implementation: `src/export-directive-envelop-hooks/` (Envelop plugin)
 - **ExportStore**: Core storage and synchronization system
-- **Middleware**: Resolver composition for export/import processing
+- **Plugin**: `useExportDirective` Envelop hook for export/import processing
 - **Utils**: Export variable detection and resolution
 - **Directive definitions**: GraphQL schema definitions
 
@@ -324,31 +326,60 @@ query dataProcessingPipeline @serial {
 
 ## 🔧 Configuration & Setup
 
-### Basic Integration
+### Basic Integration (Envelop Hooks)
 
 ```typescript
+import { buildSchemaSDL } from "drizzle-graphql-plus";
+import { makeExecutableSchema } from "@graphql-tools/schema";
+import { envelop, useEngine, useSchema } from "@envelop/core";
+import { execute, subscribe, parse } from "graphql";
+import { GraphQLULID } from "graphql-scalars";
 import {
-  createSerialMiddleware,
-  createSerialResolverMap,
   serialDirectiveTypeDefs,
-  SerialExecutor,
-  createExportMiddleware,
-  createExportResolverMap,
+  useSerialDirective,
+} from "drizzle-graphql-plus/serial-envelop-hooks";
+import {
   exportDirectiveTypeDefs,
-  ExportStore,
+  useExportDirective,
   makeScalarAcceptExports,
-} from "drizzle-graphql";
+} from "drizzle-graphql-plus/export-directive-envelop-hooks";
 
-// Add directive definitions to your GraphQL schema
-const typeDefs = `
+// 1. Build schema from Drizzle
+const { typeDefs, resolvers } = buildSchemaSDL(db);
+
+// 2. Setup flexible ID scalar with export support
+GraphQLULID.name = "ID";
+const FlexibleID = makeScalarAcceptExports(GraphQLULID);
+
+// 3. Add directive definitions to your GraphQL schema
+const fullTypeDefs = `
   ${serialDirectiveTypeDefs}
   ${exportDirectiveTypeDefs}
-  # ... your other type definitions
+  ${typeDefs}
 `;
 
-// Compose resolvers with directive middleware
-const composedResolvers = composeResolvers(resolvers, {
-  ...createSerialResolverMap(),
-  ...createExportResolverMap(),
+// 4. Create executable schema
+const schema = makeExecutableSchema({
+  typeDefs: fullTypeDefs,
+  resolvers: {
+    ...resolvers,
+    ID: FlexibleID,
+  },
+});
+
+// 5. Create Envelop instance with both plugins
+const getEnveloped = envelop({
+  plugins: [
+    useEngine({ execute, subscribe, parse }),
+    useSchema(schema),
+    useSerialDirective(),
+    useExportDirective(),
+  ],
 });
 ```
+
+> Note: The older resolver-composition helpers (`createSerialMiddleware`,
+> `createExportMiddleware`, `create*ResolverMap`, `composeResolvers`) are
+> still available in the deprecated `serial-directive` and
+> `export-directive` modules, but new integrations should prefer the
+> Envelop hooks shown above.
