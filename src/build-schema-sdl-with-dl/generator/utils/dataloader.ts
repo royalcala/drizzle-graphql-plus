@@ -39,7 +39,7 @@ export class RelationDataLoader {
     private relations: Record<string, TableNamedRelations>,
     private context?: any, // Add context parameter
     private debugConfig?: { dataLoader?: boolean; exportVariables?: boolean } // Add debug config
-  ) {}
+  ) { }
 
   private createLoaderKey(key: RelationLoaderKey): string {
     return JSON.stringify({
@@ -98,7 +98,7 @@ export class RelationDataLoader {
       let resolvedWhere = firstKey.where;
       if (resolvedWhere && this.context?.exportStore) {
         const { hasExportVariables, resolveExportVariables } = await import(
-          "../../../export-directive/utils"
+          "../../../export-directive[DEPRECATED]/utils"
         );
         if (hasExportVariables(resolvedWhere)) {
           try {

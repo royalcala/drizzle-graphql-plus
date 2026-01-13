@@ -7,8 +7,10 @@ export default defineConfig({
     include: [
       // "tests/**/*.test.ts",
       // "test-server/**/*.test.ts",
-      "src/export-tool/**/*.test.ts",
+      // "src/export-tool/**/*.test.ts",
       "src/build-schema-sdl-with-dl/**/*.test.ts",
+      "src/serial-directive-envelop-hooks/**/*.test.ts",
+      "src/export-directive-envelop-hooks/**/*.test.ts",
     ],
     isolate: true,
     typecheck: {

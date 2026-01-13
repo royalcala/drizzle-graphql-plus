@@ -3,7 +3,7 @@ import { composeResolvers } from "@graphql-tools/resolvers-composition";
 import {
   createExportMiddleware,
   makeScalarAcceptExports,
-} from "../../export-directive";
+} from "../../export-directive[DEPRECATED]";
 import {
   buildSchemaSDL,
   makeExecutableSchema,

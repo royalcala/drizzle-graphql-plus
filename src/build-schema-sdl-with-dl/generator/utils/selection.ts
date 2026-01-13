@@ -5,8 +5,8 @@ import { buildWhereClause, type WhereInput } from "./filters";
 import {
   resolveExportVariables,
   hasExportVariables,
-} from "../../../export-directive/utils";
-import type { ExportStore } from "../../../export-directive/ExportStore";
+} from "../../../export-directive[DEPRECATED]/utils";
+import type { ExportStore } from "../../../export-directive[DEPRECATED]/ExportStore";
 
 export type OrderByField = {
   direction: "asc" | "desc";

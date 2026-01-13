@@ -40,20 +40,17 @@ export {
 
 // Export Serial Directive
 export {
-  createSerialMiddleware,
-  createSerialResolverMap,
+  useSerialDirective,
   serialDirectiveTypeDefs,
-  SerialExecutor,
-} from "./serial-directive";
+} from "./serial-directive-envelop-hooks";
 
 // Export Export Directive
 export {
-  createExportMiddleware,
-  createExportResolverMap,
+  useExportDirective,
   exportDirectiveTypeDefs,
   ExportStore,
   makeScalarAcceptExports,
-} from "./export-directive";
+} from "./export-directive-envelop-hooks";
 export { setCustomGraphQL, setCustomGraphQLTypes } from "./helpers";
 export type { GraphQLFieldConfig } from "./helpers";
 export * from "./types";

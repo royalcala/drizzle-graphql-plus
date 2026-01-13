@@ -3,15 +3,15 @@ import { composeResolvers } from "@graphql-tools/resolvers-composition";
 import {
   createExportMiddleware,
   makeScalarAcceptExports,
-} from "../../export-directive";
-import { createSerialMiddleware } from "../../serial-directive";
+} from "../../export-directive[DEPRECATED]";
+import { createSerialMiddleware } from "../../serial-directive[DEPRECATED]";
 import {
   buildSchemaSDL,
   makeExecutableSchema,
   exportDirectiveTypeDefs,
   commonScalars,
 } from "../index";
-import { serialDirectiveTypeDefs } from "../../serial-directive/directive-definitions";
+import { serialDirectiveTypeDefs } from "../../serial-directive[DEPRECATED]/directive-definitions";
 import { envelop, useEngine, useSchema, useExtendContext } from "@envelop/core";
 import { execute as graphqlExecute, subscribe, parse } from "graphql";
 import { useDataLoaderCleanup } from "../generator/utils/envelop-plugin";

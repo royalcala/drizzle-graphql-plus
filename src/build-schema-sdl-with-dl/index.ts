@@ -11,7 +11,7 @@ import { generateQueries } from "./generator/queries";
 import { generateMutations } from "./generator/mutations";
 import { GraphQLJSON } from "./scalars/json";
 import type { GraphQLSchema } from "graphql";
-import { exportDirectiveTypeDefs } from "../export-directive/directive-definitions";
+import { exportDirectiveTypeDefs } from "../export-directive[DEPRECATED]/directive-definitions";
 
 export type Capitalize<S extends string> = S extends `${infer F}${infer R}`
   ? `${Uppercase<F>}${R}`
@@ -39,20 +39,20 @@ export type ColumnFilter<T = any> = {
 // Type for where input based on table columns
 export type WhereInput<TTable> = TTable extends { $inferSelect: infer S }
   ? {
-      [K in keyof S]?: ColumnFilter<S[K]>;
-    } & {
-      OR?: WhereInput<TTable>[];
-    }
+    [K in keyof S]?: ColumnFilter<S[K]>;
+  } & {
+    OR?: WhereInput<TTable>[];
+  }
   : never;
 
 // Type for orderBy input
 export type OrderByInput<TTable> = TTable extends { $inferSelect: infer S }
   ? {
-      [K in keyof S]?: {
-        direction: "asc" | "desc";
-        priority: number;
-      };
-    }
+    [K in keyof S]?: {
+      direction: "asc" | "desc";
+      priority: number;
+    };
+  }
   : never;
 
 // Type for query arguments
@@ -88,8 +88,8 @@ export type BuildSchemaSDLResult<
   resolvers: {
     Query: {
       [K in keyof TSchema as TSchema[K] extends { $inferSelect: any }
-        ? K
-        : never]: (
+      ? K
+      : never]: (
         parent: any,
         args: QueryArgs<TSchema[K]>,
         context: any,
@@ -98,8 +98,8 @@ export type BuildSchemaSDLResult<
     };
     Mutation: {
       [K in keyof TSchema as TSchema[K] extends { $inferSelect: any }
-        ? `insert${Capitalize<K & string>}`
-        : never]: (
+      ? `insert${Capitalize<K & string>}`
+      : never]: (
         parent: any,
         args: { data: InsertInput<TSchema[K]> | InsertInput<TSchema[K]>[] },
         context: any,
@@ -107,8 +107,8 @@ export type BuildSchemaSDLResult<
       ) => Promise<InferSelectModel<TSchema[K]>[]>;
     } & {
       [K in keyof TSchema as TSchema[K] extends { $inferSelect: any }
-        ? `update${Capitalize<K & string>}`
-        : never]: (
+      ? `update${Capitalize<K & string>}`
+      : never]: (
         parent: any,
         args: { data: UpdateInput<TSchema[K]>; where: WhereInput<TSchema[K]> },
         context: any,
@@ -116,8 +116,8 @@ export type BuildSchemaSDLResult<
       ) => Promise<InferSelectModel<TSchema[K]>[]>;
     } & {
       [K in keyof TSchema as TSchema[K] extends { $inferSelect: any }
-        ? `delete${Capitalize<K & string>}`
-        : never]: (
+      ? `delete${Capitalize<K & string>}`
+      : never]: (
         parent: any,
         args: { where: WhereInput<TSchema[K]> },
         context: any,
@@ -133,8 +133,8 @@ export const buildSchemaSDL = <
   TSchema extends Record<string, any> = TDbClient extends {
     _: { fullSchema: infer S };
   }
-    ? S
-    : Record<string, any>
+  ? S
+  : Record<string, any>
 >(
   db: TDbClient,
   config?: BuildSchemaSDLConfig
@@ -197,8 +197,8 @@ export const commonScalars = {
 };
 
 // Export individual directive typeDefs
-export { exportDirectiveTypeDefs } from "../export-directive/directive-definitions";
-export { serialDirectiveTypeDefs } from "../serial-directive/directive-definitions";
+export { exportDirectiveTypeDefs } from "../export-directive[DEPRECATED]/directive-definitions";
+export { serialDirectiveTypeDefs } from "../serial-directive[DEPRECATED]/directive-definitions";
 
 // Re-export makeExecutableSchema for user convenience
 export { makeExecutableSchema } from "@graphql-tools/schema";

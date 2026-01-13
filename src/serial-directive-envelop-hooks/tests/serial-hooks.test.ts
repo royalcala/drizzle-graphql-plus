@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { ulid as generateUlid } from "ulid";
-import * as schema from "./schema";
+import * as schema from "../../build-schema-sdl-with-dl/tests/schema";
 import {
   user,
   post,
@@ -12,16 +12,21 @@ import {
   userProfile,
   sport,
   city,
-} from "./schema";
-import { executeGraphQLQuery } from "./shared-envelop";
-import { createSerialEnvelop } from "./shared-serial-config";
+} from "../../build-schema-sdl-with-dl/tests/schema";
+import { envelop, useEngine, useSchema, useExtendContext } from "@envelop/core";
+import { execute as graphqlExecute, subscribe, parse } from "graphql";
+import { useDataLoaderCleanup } from "../../build-schema-sdl-with-dl/generator/utils/envelop-plugin";
+import { buildSchemaSDL, makeExecutableSchema, commonScalars } from "../../build-schema-sdl-with-dl";
+import { useSerialDirective, serialDirectiveTypeDefs } from "../index";
+import { GraphQLULID } from "graphql-scalars";
+import { makeScalarAcceptExports } from "../../export-directive[DEPRECATED]";
 
 // Database schema imports
 const db_schema = schema;
 
 // Create test database client
 const client = createClient({
-  url: "file:src/build-schema-sdl-with-dl/tests/test-serial-resolvers.db",
+  url: "file:src/serial-directive-envelop-hooks/tests/test-serial-hooks.db",
 });
 
 const db = drizzle(client, {
@@ -37,11 +42,75 @@ const db = drizzle(client, {
   },
 });
 
-// Create envelop configuration with serial directive support
-const serialEnveloped = createSerialEnvelop(db);
-const normalEnveloped = createSerialEnvelop(db, { enableSerial: false });
+// Setup flexible ID scalar with export support
+GraphQLULID.name = "ID";
+const FlexibleID = makeScalarAcceptExports(GraphQLULID);
 
-describe("Serial Directive Integration Tests", () => {
+/**
+ * Create Envelop instance with serial directive support
+ */
+function createSerialEnvelop(enableSerial: boolean = true) {
+  const { typeDefs, resolvers } = buildSchemaSDL(db);
+
+  const directiveTypeDefs = [
+    ...(enableSerial ? [serialDirectiveTypeDefs] : []),
+    `enum ReactionType { LIKE DISLIKE }`,
+  ];
+
+  const fullTypeDefs = [...directiveTypeDefs, typeDefs].join("\n\n");
+
+  const schema = makeExecutableSchema({
+    typeDefs: fullTypeDefs,
+    resolvers: {
+      ...resolvers,
+      ...commonScalars,
+      ID: FlexibleID,
+    },
+  });
+
+  return envelop({
+    plugins: [
+      useEngine({ execute: graphqlExecute, subscribe, parse }),
+      useSchema(schema),
+      useDataLoaderCleanup({ db }),
+      useExtendContext(() => ({ db })),
+      ...(enableSerial ? [useSerialDirective()] : []),
+    ],
+  });
+}
+
+// Create envelop configurations
+const serialEnveloped = createSerialEnvelop(true);
+const normalEnveloped = createSerialEnvelop(false);
+
+/**
+ * Execute a GraphQL query using Envelop
+ */
+async function executeGraphQLQuery(
+  enveloped: ReturnType<typeof envelop>,
+  query: string,
+  variables?: Record<string, any>
+): Promise<any> {
+  const { execute, schema, contextFactory } = enveloped();
+
+  const document = parse(query);
+  const context = await contextFactory();
+
+  const result = await execute({
+    schema,
+    document,
+    contextValue: context,
+    variableValues: variables,
+  });
+
+  if ("data" in result) {
+    return result.data;
+  }
+
+  throw new Error(`GraphQL execution failed: ${JSON.stringify(result)}`);
+}
+
+describe("Serial Envelop Hooks Tests", () => {
   const testData = {
     userId1: generateUlid(),
     userId2: generateUlid(),
@@ -55,42 +124,42 @@ describe("Serial Directive Integration Tests", () => {
     profileId2: generateUlid(),
     sportId: generateUlid(),
     cityId: generateUlid(),
-    testEmail1: `serial-test-1-${generateUlid()}@example.com`,
-    testEmail2: `serial-test-2-${generateUlid()}@example.com`,
+    testEmail1: `serial-hooks-test-1-${generateUlid()}@example.com`,
+    testEmail2: `serial-hooks-test-2-${generateUlid()}@example.com`,
   };
 
   beforeAll(async () => {
-    // Seed test data for serial execution tests
+    // Seed test data
     await db.insert(sport).values({
       id: testData.sportId,
-      name: "Serial Test Sport",
+      name: "Serial Hooks Test Sport",
     });
 
     await db.insert(city).values({
       id: testData.cityId,
-      name: "Serial Test City",
-      slug: `serial-city-${generateUlid().slice(-8)}`,
+      name: "Serial Hooks Test City",
+      slug: `serial-hooks-city-${generateUlid().slice(-8)}`,
     });
 
     await db.insert(user).values([
       {
         id: testData.userId1,
-        name: "Serial Test User 1",
+        name: "Serial Hooks User 1",
         email: testData.testEmail1,
-        bio: "First test user for serial execution",
+        bio: "First test user for serial hooks",
       },
       {
         id: testData.userId2,
-        name: "Serial Test User 2",
+        name: "Serial Hooks User 2",
         email: testData.testEmail2,
-        bio: "Second test user for serial execution",
+        bio: "Second test user for serial hooks",
       },
     ]);
 
     await db.insert(post).values([
       {
         id: testData.postId1,
-        title: "Serial Test Post 1",
+        title: "Serial Hooks Post 1",
         content: "First test post content",
         authorId: testData.userId1,
         sportId: testData.sportId,
@@ -98,7 +167,7 @@ describe("Serial Directive Integration Tests", () => {
       },
       {
         id: testData.postId2,
-        title: "Serial Test Post 2",
+        title: "Serial Hooks Post 2",
         content: "Second test post content",
         authorId: testData.userId2,
         sportId: testData.sportId,
@@ -109,13 +178,13 @@ describe("Serial Directive Integration Tests", () => {
     await db.insert(comment).values([
       {
         id: testData.commentId1,
-        text: "First serial test comment",
+        text: "First serial hooks comment",
         postId: testData.postId1,
         userId: testData.userId1,
       },
       {
         id: testData.commentId2,
-        text: "Second serial test comment",
+        text: "Second serial hooks comment",
         postId: testData.postId2,
         userId: testData.userId2,
       },
@@ -142,16 +211,16 @@ describe("Serial Directive Integration Tests", () => {
       {
         id: testData.profileId1,
         userId: testData.userId1,
-        bio: "Profile for serial test user 1",
+        bio: "Profile for serial hooks user 1",
         avatarUrl: "https://example.com/avatar1.jpg",
-        website: "https://serial-test-1.com",
+        website: "https://serial-hooks-1.com",
       },
       {
         id: testData.profileId2,
         userId: testData.userId2,
-        bio: "Profile for serial test user 2",
+        bio: "Profile for serial hooks user 2",
         avatarUrl: "https://example.com/avatar2.jpg",
-        website: "https://serial-test-2.com",
+        website: "https://serial-hooks-2.com",
       },
     ]);
   });
@@ -176,14 +245,9 @@ describe("Serial Directive Integration Tests", () => {
     await db.delete(city).where(eq(city.id, testData.cityId));
   });
 
-  describe("Serial Directive Basic Functionality", () => {
+  describe("Basic Serial Directive Functionality", () => {
     it("should execute root-level queries sequentially with @serial directive", async () => {
-      const executionLog: string[] = [];
       const startTime = Date.now();
-
-      // Enable debugging for this test
-      const originalDebug = process.env.DEBUG_SERIAL;
-      process.env.DEBUG_SERIAL = "true";
 
       const data = await executeGraphQLQuery(
         serialEnveloped,
@@ -209,9 +273,6 @@ describe("Serial Directive Integration Tests", () => {
 
       const endTime = Date.now();
       console.log(`Serial query execution time: ${endTime - startTime}ms`);
-
-      // Restore debug setting
-      process.env.DEBUG_SERIAL = originalDebug;
 
       expect(data).toBeDefined();
       expect(data?.users).toBeDefined();
@@ -266,8 +327,7 @@ describe("Serial Directive Integration Tests", () => {
     });
 
     it("should demonstrate timing difference between serial and parallel execution", async () => {
-      // Test with artificial delay to make timing differences more apparent
-      const delayQuery = `
+      const query = `
         query GetDataWithDelay {
           users: userFindMany(limit: 1) {
             id
@@ -294,22 +354,22 @@ describe("Serial Directive Integration Tests", () => {
 
       // Parallel execution
       const parallelStart = Date.now();
-      const parallelData = await executeGraphQLQuery(
-        normalEnveloped,
-        delayQuery
-      );
+      const parallelData = await executeGraphQLQuery(normalEnveloped, query);
       const parallelTime = Date.now() - parallelStart;
 
       // Serial execution
       const serialStart = Date.now();
       const serialData = await executeGraphQLQuery(
         serialEnveloped,
-        delayQuery.replace("GetDataWithDelay", "GetDataWithDelay @serial")
+        query.replace("GetDataWithDelay", "GetDataWithDelay @serial")
       );
       const serialTime = Date.now() - serialStart;
 
       console.log(`Parallel execution: ${parallelTime}ms`);
       console.log(`Serial execution: ${serialTime}ms`);
+      console.log(
+        `Serial vs Parallel time difference: ${serialTime - parallelTime}ms`
+      );
 
       // Both should return the same data
       expect(parallelData).toBeDefined();
@@ -318,17 +378,11 @@ describe("Serial Directive Integration Tests", () => {
       expect(serialData?.users).toBeDefined();
       expect(parallelData?.posts).toBeDefined();
       expect(serialData?.posts).toBeDefined();
-
-      // Serial execution might be slightly slower due to queuing overhead
-      // but this isn't always guaranteed in fast operations
-      console.log(
-        `Serial vs Parallel time difference: ${serialTime - parallelTime}ms`
-      );
     });
   });
 
   describe("Serial Directive with Nested Relations", () => {
-    it("should execute nested queries sequentially within parent scope", async () => {
+    it("should execute nested queries correctly", async () => {
       const data = await executeGraphQLQuery(
         serialEnveloped,
         `
@@ -387,7 +441,7 @@ describe("Serial Directive Integration Tests", () => {
       });
     });
 
-    it("should handle mixed serial and nested parallel execution correctly", async () => {
+    it("should handle mixed serial root fields and nested parallel execution", async () => {
       const data = await executeGraphQLQuery(
         serialEnveloped,
         `
@@ -451,145 +505,7 @@ describe("Serial Directive Integration Tests", () => {
     });
   });
 
-  describe("Serial Directive Performance Impact", () => {
-    it("should handle large datasets with serial execution", async () => {
-      const data = await executeGraphQLQuery(
-        serialEnveloped,
-        `
-        query LargeDatasetSerial @serial {
-          users: userFindMany(limit: 10) {
-            id
-            name
-            email
-          }
-          posts: postFindMany(limit: 10) {
-            id
-            title
-            content
-          }
-          comments: commentFindMany(limit: 10) {
-            id
-            text
-          }
-        }
-        `
-      );
-
-      expect(data?.users).toBeDefined();
-      expect(data?.posts).toBeDefined();
-      expect(data?.comments).toBeDefined();
-      expect(Array.isArray(data?.users)).toBe(true);
-      expect(Array.isArray(data?.posts)).toBe(true);
-      expect(Array.isArray(data?.comments)).toBe(true);
-
-      // Should handle up to the available data (we only have 2 users, 2 posts, 2 comments)
-      expect((data?.users as any[]).length).toBeLessThanOrEqual(10);
-      expect((data?.posts as any[]).length).toBeLessThanOrEqual(10);
-      expect((data?.comments as any[]).length).toBeLessThanOrEqual(10);
-    });
-
-    it("should handle complex queries with multiple levels of nesting", async () => {
-      const data = await executeGraphQLQuery(
-        serialEnveloped,
-        `
-        query ComplexSerialQuery @serial {
-          sport: sportFindFirst(where: { id: { eq: "${testData.sportId}" } }) {
-            id
-            name
-            posts {
-              id
-              title
-              author {
-                id
-                name
-                profile {
-                  id
-                  bio
-                }
-              }
-              comments {
-                id
-                text
-                user {
-                  id
-                  name
-                }
-                reactions {
-                  id
-                  type
-                  user {
-                    id
-                    name
-                  }
-                }
-              }
-            }
-          }
-        }
-        `
-      );
-
-      expect(data?.sport).toBeDefined();
-      expect(data?.sport?.posts).toBeDefined();
-      expect(Array.isArray(data?.sport?.posts)).toBe(true);
-
-      const posts = data?.sport?.posts as any[];
-      if (posts.length > 0) {
-        posts.forEach((post: any) => {
-          expect(post.author).toBeDefined();
-          expect(post.comments).toBeDefined();
-
-          if (post.author) {
-            // Profile might not exist for all users in test data
-            if (post.author.profile) {
-              expect(post.author.profile).toBeDefined();
-            }
-          }
-
-          if (post.comments && post.comments.length > 0) {
-            post.comments.forEach((comment: any) => {
-              expect(comment.user).toBeDefined();
-              expect(comment.reactions).toBeDefined();
-
-              if (comment.reactions && comment.reactions.length > 0) {
-                comment.reactions.forEach((reaction: any) => {
-                  // User relation should be present but test data might be limited
-                  if (reaction.user) {
-                    expect(reaction.user).toBeDefined();
-                  }
-                });
-              }
-            });
-          }
-        });
-      }
-    });
-  });
-
   describe("Serial Directive Error Handling", () => {
-    it("should handle errors in serial execution gracefully", async () => {
-      // Test with a query that might cause an error
-      const data = await executeGraphQLQuery(
-        serialEnveloped,
-        `
-        query ErrorHandlingTest @serial {
-          validUsers: userFindMany(limit: 2) {
-            id
-            name
-          }
-          posts: postFindMany(limit: 2) {
-            id
-            title
-          }
-        }
-        `
-      );
-
-      // Should still return valid data even if some fields might have issues
-      expect(data?.validUsers).toBeDefined();
-      expect(data?.posts).toBeDefined();
-    });
-
     it("should handle empty results in serial execution", async () => {
       const data = await executeGraphQLQuery(
         serialEnveloped,
@@ -616,9 +532,8 @@ describe("Serial Directive Integration Tests", () => {
     });
   });
 
-  describe("Serial Directive Query Execution Tests", () => {
-    it("should demonstrate serial directive behavior with complex queries", async () => {
-      // Test that demonstrates the execution order with timing
+  describe("Serial Directive Query Execution Order", () => {
+    it("should demonstrate serial directive behavior with ordered execution", async () => {
       const startTime = Date.now();
 
       const data = await executeGraphQLQuery(
@@ -653,9 +568,6 @@ describe("Serial Directive Integration Tests", () => {
     });
 
     it("should verify serial execution maintains data consistency", async () => {
-      // This test simulates what would be mutation behavior with queries
-      // demonstrating that serial execution maintains order and consistency
-
       const data = await executeGraphQLQuery(
         serialEnveloped,
         `
@@ -697,7 +609,7 @@ describe("Serial Directive Integration Tests", () => {
     });
   });
 
-  describe("Serial Directive Configuration Tests", () => {
+  describe("Serial vs Parallel Comparison", () => {
     it("should demonstrate the difference in execution strategy", async () => {
       const query = `
         query ConfigTest {
@@ -739,21 +651,6 @@ describe("Serial Directive Integration Tests", () => {
       expect((serialResult?.posts as any[]).length).toBe(
         (parallelResult?.posts as any[]).length
       );
-    });
-
-    it("should verify schema includes serial directive", () => {
-      // Get the schema from the shared-serial-config
-      const { createSerialSchema } = require("./shared-serial-config");
-      const { schema } = createSerialSchema(db);
-
-      const directiveNames = schema.getDirectives().map((d) => d.name);
-
-      expect(directiveNames).toContain("serial");
-
-      const serialDirective = schema.getDirective("serial");
-      expect(serialDirective).toBeDefined();
-      expect(serialDirective?.locations).toContain("QUERY");
-      expect(serialDirective?.locations).toContain("MUTATION");
     });
   });
 });

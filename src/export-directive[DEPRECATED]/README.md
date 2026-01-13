@@ -16,16 +16,20 @@ The `@export` directive works using:
 The export directive now works seamlessly with nested relations:
 
 ```graphql
-query GetSportPostsByCity($citySlug: String!, $sportName: String!, $cityId: ID = "") {
+query GetSportPostsByCity(
+  $citySlug: String!
+  $sportName: String!
+  $_cityId: ID = ""
+) {
   cityFindFirst(where: { slug: { eq: $citySlug } }) {
-    id @export(as: "cityId")
+    id @export(as: "$_cityId") # ← Must match GraphQL variable name
     name
     slug
   }
   sportWithPosts: sportFindFirst(where: { name: { eq: $sportName } }) {
     id
     name
-    posts(where: { cityId: { eq: $cityId } }) {
+    posts(where: { cityId: { eq: $_cityId } }) {
       id
       title
       content
@@ -42,16 +46,17 @@ Call with:
 graphql({
   schema,
   source: query,
-  variableValues: { 
+  variableValues: {
     citySlug: "new-york",
     sportName: "Football",
-    cityId: "$_cityId" // This will be resolved from the exported cityId
+    _cityId: "", // Empty default, will be filled by export
   },
   contextValue: {},
 });
 ```
 
 This will:
+
 1. Find the city by slug and export its ID as "cityId"
 2. Find the sport by name
 3. Filter the sport's posts to only include those from the exported city ID
@@ -59,7 +64,10 @@ This will:
 ### Basic Usage Example
 
 ```typescript
-import { makeFlexibleScalar, createExportResolverMap } from "drizzle-graphql/export-tool";
+import {
+  makeFlexibleScalar,
+  createExportResolverMap,
+} from "drizzle-graphql/export-tool";
 import { composeResolvers } from "@graphql-tools/resolvers-composition";
 import { GraphQLULID } from "graphql-scalars"; // or your own scalar
 
@@ -115,10 +123,10 @@ const FlexibleString = makeScalarAcceptExports(GraphQLString);
 const resolverMap = {
   ...resolvers,
   // Override scalars with flexible versions
-  ID: FlexibleULID,        // For ULID/ID fields
-  ULID: FlexibleULID,      // If you use ULID scalar
-  Int: FlexibleInt,        // For integer fields
-  String: FlexibleString,  // For string fields (if needed)
+  ID: FlexibleULID, // For ULID/ID fields
+  ULID: FlexibleULID, // If you use ULID scalar
+  Int: FlexibleInt, // For integer fields
+  String: FlexibleString, // For string fields (if needed)
 };
 ```
 
@@ -144,9 +152,9 @@ Here's a complete setup for a drizzle-graphql project:
 import { makeExecutableSchema } from "@graphql-tools/schema";
 import { composeResolvers } from "@graphql-tools/resolvers-composition";
 import { buildSchemaSDL } from "drizzle-graphql";
-import { 
-  createExportMiddleware, 
-  makeScalarAcceptExports 
+import {
+  createExportMiddleware,
+  makeScalarAcceptExports,
 } from "drizzle-graphql/export-tool";
 import { GraphQLULID } from "graphql-scalars";
 
@@ -167,7 +175,7 @@ const FlexibleULID = makeScalarAcceptExports(GraphQLULID);
 const resolverMap = {
   ...resolvers,
   ULID: FlexibleULID, // Allow $_ patterns in ULID fields
-  ID: FlexibleULID,   // Allow $_ patterns in ID fields
+  ID: FlexibleULID, // Allow $_ patterns in ID fields
 };
 
 // 5. Apply export middleware
@@ -186,11 +194,11 @@ export { schema };
 
 ### 5. **What Each Component Does**
 
-| Component | Purpose | Required For |
-|-----------|---------|--------------|
-| `@export` directive | Marks fields for export | Storing exported values |
-| Flexible scalars | Accept `$_` patterns during validation | Using export variables in queries |
-| Export middleware | Resolves `$_` patterns at runtime | Both storing and using exports |
+| Component           | Purpose                                | Required For                      |
+| ------------------- | -------------------------------------- | --------------------------------- |
+| `@export` directive | Marks fields for export                | Storing exported values           |
+| Flexible scalars    | Accept `$_` patterns during validation | Using export variables in queries |
+| Export middleware   | Resolves `$_` patterns at runtime      | Both storing and using exports    |
 
 ### 6. **Automatic Nested Relation Support**
 
@@ -228,22 +236,25 @@ const customResolvers = {
       // args will have export variables already resolved
       // e.g., if query had { userId: { eq: $userId } }
       // args.userId will contain the actual resolved value, not "$_userId"
-      
-      console.log('Resolved args:', args);
+
+      console.log("Resolved args:", args);
       return await db.query.myTable.findMany({
-        where: eq(myTable.userId, args.userId) // This is the resolved value!
+        where: eq(myTable.userId, args.userId), // This is the resolved value!
       });
-    }
-  }
+    },
+  },
 };
 
 // Apply middleware - this makes export variables work automatically
-const composedResolvers = composeResolvers({
-  ...buildSchemaSDLResolvers,
-  ...customResolvers, // Your custom resolvers get export support too!
-}, {
-  "*.*": [createExportMiddleware()],
-});
+const composedResolvers = composeResolvers(
+  {
+    ...buildSchemaSDLResolvers,
+    ...customResolvers, // Your custom resolvers get export support too!
+  },
+  {
+    "*.*": [createExportMiddleware()],
+  }
+);
 ```
 
 ### 2. **How Export Resolution Works in Custom Resolvers**
@@ -261,12 +272,12 @@ const resolvers = {
     getUserPosts: async (parent, args, context, info) => {
       // args.authorId will be the resolved value (e.g., "01HXXX...")
       // NOT the pattern string "$_userId"
-      
+
       return await db.query.post.findMany({
-        where: eq(post.authorId, args.authorId)
+        where: eq(post.authorId, args.authorId),
       });
-    }
-  }
+    },
+  },
 };
 ```
 
@@ -298,17 +309,17 @@ const resolvers = {
   Query: {
     myCustomQuery: async (parent, args, context, info) => {
       const result = await db.query.user.findFirst({
-        where: eq(user.email, args.email)
+        where: eq(user.email, args.email),
       });
-      
+
       // Manual export (only if you can't use @export directive)
       if (context.exportStore && result) {
         (context.exportStore as ExportStore).set("currentUserId", result.id);
       }
-      
+
       return result;
-    }
-  }
+    },
+  },
 };
 ```
 
@@ -317,7 +328,7 @@ const resolvers = {
 ❌ **Don't** manually check for `$_` patterns in args  
 ❌ **Don't** manually resolve export variables  
 ❌ **Don't** manually access `context.exportStore` (unless advanced use case)  
-❌ **Don't** write special export handling logic  
+❌ **Don't** write special export handling logic
 
 ✅ **Do** write normal resolvers - middleware handles everything!
 
@@ -340,10 +351,10 @@ const customResolvers = {
         where: and(
           eq(post.authorId, args.authorId), // Resolved value
           like(post.title, `%${args.searchTerm}%`)
-        )
+        ),
       });
-    }
-  }
+    },
+  },
 };
 
 // 3. Combine and apply middleware
@@ -352,7 +363,7 @@ const allResolvers = {
   Query: {
     ...autoResolvers.Query,
     ...customResolvers.Query,
-  }
+  },
 };
 
 const composedResolvers = composeResolvers(allResolvers, {
@@ -364,15 +375,17 @@ const composedResolvers = composeResolvers(allResolvers, {
 
 **Key Insight**: Export variables work transparently with custom resolvers. Just write normal resolvers and apply the export middleware - your resolvers will automatically receive resolved values and support the `@export` directive.
 
-### Query Pattern
+### Query Patterns
+
+#### Pattern 1: GraphQL Variables (Recommended)
 
 ```graphql
-query GetUserPosts($authorId: ULID = "") {
+query GetUserPosts($_authorId: ULID = "") {
   user: userFindFirst(where: { email: { eq: "john@example.com" } }) {
-    id @export(as: "authorId")
+    id @export(as: "$_authorId") # ← Must match GraphQL variable name
     name
   }
-  posts: postFindMany(where: { authorId: { eq: $authorId } }) {
+  posts: postFindMany(where: { authorId: { eq: $_authorId } }) {
     id
     title
   }
@@ -385,24 +398,37 @@ Call with:
 graphql({
   schema,
   source: query,
-  variableValues: { authorId: "$_authorId" }, // Pattern passed as variable value
+  variableValues: { _authorId: "" }, // Empty default, will be filled by export
   contextValue: {},
 });
+```
+
+#### Pattern 2: Simple Export Keys
+
+```graphql
+query {
+  user: userFindFirst(where: { email: { eq: "john@example.com" } }) {
+    id @export(as: "authorId") # ← Simple key name
+    name
+  }
+  # Note: Cannot directly use simple exports in GraphQL queries
+  # Access via exportStore.get("authorId") in JavaScript
+}
 ```
 
 ### Multiple Variables Example
 
 ```graphql
-query SequencedExports($userId: ULID = "", $postId: ULID = "") {
+query SequencedExports($_userId: ULID = "", $_postId: ULID = "") {
   step1: userFindFirst(where: { email: { eq: "john@example.com" } }) {
-    id @export(as: "userId")
+    id @export(as: "$_userId") # ← Must match GraphQL variable name
     name
   }
-  step2: postFindFirst(where: { authorId: { eq: $userId } }) {
-    id @export(as: "postId")
+  step2: postFindFirst(where: { authorId: { eq: $_userId } }) {
+    id @export(as: "$_postId") # ← Must match GraphQL variable name
     title
   }
-  step3: commentFindMany(where: { postId: { eq: $postId } }) {
+  step3: commentFindMany(where: { postId: { eq: $_postId } }) {
     id
     text
   }
@@ -416,12 +442,74 @@ graphql({
   schema,
   source: query,
   variableValues: {
-    userId: "$_userId",
-    postId: "$_postId",
+    _userId: "", // Empty defaults, will be filled by exports
+    _postId: "",
   },
   contextValue: {},
 });
 ```
+
+## Export Naming Patterns
+
+You have **two different patterns** you can use for export directives:
+
+### Pattern 1: GraphQL Variables with `$_` prefix (Recommended)
+
+Use this pattern when you want to create **proper export-import chains** that work with GraphQL validation:
+
+```graphql
+query PostsAndTheirAuthors($_authorIds: [ID!] = [""]) @serial {
+  # Step 1: Export TO GraphQL variable
+  posts: postFindMany(where: { title: { like: "%Alice%" } }) {
+    authorId @export(as: "$_authorIds") # ← Must match GraphQL variable name
+  }
+
+  # Step 2: Use GraphQL variable in next query
+  authors: userFindMany(where: { id: { inArray: $_authorIds } }) {
+    id
+    name
+  }
+}
+```
+
+**Rules for GraphQL Variable Pattern:**
+
+- **GraphQL variable**: `$_variableName` (declared in query signature)
+- **Export directive**: `@export(as: "$_variableName")` (same name with `$_`)
+- **Usage**: `$_variableName` (standard GraphQL variable syntax)
+
+### Pattern 2: Simple Export Store Keys (Basic)
+
+Use this pattern for **simple export storage** without GraphQL variable integration:
+
+```graphql
+query {
+  users: userFindMany(where: { name: { in: ["Alice", "Bob"] } }) {
+    id @export(as: "selectedUserIds") # ← Simple key name
+    email @export(as: "selectedEmails") # ← No $_ prefix needed
+  }
+}
+```
+
+**Rules for Simple Pattern:**
+
+- **Export directive**: `@export(as: "simpleKeyName")` (no `$_` prefix)
+- **Access**: Only via `exportStore.get("simpleKeyName")` in JavaScript code
+- **No GraphQL integration**: Cannot use these exports directly in other GraphQL queries
+
+### Which Pattern Should You Use?
+
+**✅ Use Pattern 1 (`$_` prefix)** when:
+
+- You want export-import chains within the same GraphQL query
+- You need GraphQL validation to work properly
+- You want the full power of the export directive system
+
+**✅ Use Pattern 2 (simple keys)** when:
+
+- You only need to store values for JavaScript code to access later
+- You don't need GraphQL variable integration
+- You want simpler export names without special prefixes
 
 ## Why This Works
 
@@ -430,17 +518,22 @@ graphql({
 3. **Middleware resolves at execution time** - After validation completes
 4. **Supports multiple exports** - Dependencies create natural execution order
 5. **Nested relation support** - Export variables are resolved during Drizzle query building phase (NEW!)
+6. **Dual naming support** - Works with both `$_` GraphQL variables and simple export keys
 
 ## Key Features
 
 ### ✅ Top-Level Resolver Support
+
 Export variables work in top-level queries:
+
 ```graphql
 posts: postFindMany(where: { authorId: { eq: $userId } })
 ```
 
 ### ✅ Nested Relation Support (NEW!)
+
 Export variables work in nested relation queries:
+
 ```graphql
 sport: sportFindFirst(...) {
   posts(where: { cityId: { eq: $cityId } }) { ... }
@@ -448,14 +541,16 @@ sport: sportFindFirst(...) {
 ```
 
 ### ✅ Multiple Variable Support
+
 Handle complex dependencies:
+
 ```graphql
-query($userId: ID = "", $postId: ID = "") {
-  user: userFindFirst(...) { id @export(as: "userId") }
-  post: postFindFirst(where: { authorId: { eq: $userId } }) { 
-    id @export(as: "postId") 
+query($_userId: ID = "", $_postId: ID = "") {
+  user: userFindFirst(...) { id @export(as: "$_userId") }
+  post: postFindFirst(where: { authorId: { eq: $_userId } }) {
+    id @export(as: "$_postId")
   }
-  comments: commentFindMany(where: { postId: { eq: $postId } }) { ... }
+  comments: commentFindMany(where: { postId: { eq: $_postId } }) { ... }
 }
 ```
 
@@ -551,28 +646,38 @@ const schema = makeExecutableSchema({
 ### 4. Query Example
 
 ```graphql
-# Basic export usage
-query {
+# GraphQL Variable Pattern (Recommended)
+query ($_userId: ULID = "") {
   userFindFirst(where: { id: { eq: "01HXXX" } }) {
-    id @export(as: "userId")
+    id @export(as: "$_userId") # ← Must match GraphQL variable name
     name
   }
-  postFindMany(where: { authorId: { eq: "$_userId" } }) {
+  postFindMany(where: { authorId: { eq: $_userId } }) {
     id
     title
   }
 }
 
+# Simple Export Pattern (JavaScript access only)
+query {
+  userFindFirst(where: { id: { eq: "01HXXX" } }) {
+    id @export(as: "userId") # ← Simple key for JavaScript access
+    name
+  }
+  # Cannot use simple exports directly in GraphQL
+  # Access via: context.exportStore.get("userId")
+}
+
 # Nested relation export usage (NEW!)
-query($cityId: ID = "") {
+query ($_cityId: ID = "") {
   cityFindFirst(where: { slug: { eq: "new-york" } }) {
-    id @export(as: "cityId")
+    id @export(as: "$_cityId") # ← Must match GraphQL variable name
     name
   }
   sportWithPosts: sportFindFirst(where: { name: { eq: "Football" } }) {
     id
     name
-    posts(where: { cityId: { eq: $cityId } }) {
+    posts(where: { cityId: { eq: $_cityId } }) {
       id
       title
       cityId
@@ -603,7 +708,7 @@ query($cityId: ID = "") {
 | Uses `mapSchema`                 | Uses `composeResolvers`                         |
 | Complex field-level wrapping     | Simple resolver wrapping                        |
 | Hard to debug                    | Easy to debug                                   |
-| No nested relation support       | ✅ **Full nested relation support**            |
+| No nested relation support       | ✅ **Full nested relation support**             |
 
 ## ⚠️ Direct String Limitation
 
@@ -680,97 +785,99 @@ Following the LogRocket implementation, our @export should support:
 ✅ **Framework agnostic** - Works with any GraphQL server
 
 ## Test Results
- 
- - ✅ **ExportStore**: All tests pass
- - ✅ **Utils**: All tests pass
- - ✅ **Middleware**: All tests pass
- - ✅ **Integration**: All tests pass (using Flexible Scalar + Variable approach)
- - ✅ **Nested Relations**: All tests pass (export variables work in nested relation queries)
- 
- ## Conclusion
- 
- This implementation provides a **fully functional @export directive** using resolver composition and a customized scalar, with complete support for nested relations.
- 
- The solution successfully overcomes the scalar validation issue by using `makeScalarAcceptExports`, which creates a scalar that accepts both valid values and `$_varName` strings during the validation phase.
- 
- **NEW**: The latest enhancement adds support for export variables in nested relation queries, making the export directive work seamlessly across all GraphQL query patterns.
- 
- Included features:
- 
- ✅ **Flexible Scalars**: Helper factory to pass validation for export patterns
- ✅ **Resolver Middleware**: Intercepts execution to resolve variables and store exports
- ✅ **Recursive Resolution**: Supports nested fields and deep variable resolution
- ✅ **Variable Support**: Works with standard GraphQL variables
- ✅ **Nested Relations**: Export variables work in nested relation queries (sport.posts, user.profile, etc.)
- 
- ### Recommendations
- 
- For **Production Use**:
- 
- 1. **Use the Variable Pattern**: Always use GraphQL variables (`$userId: ULID = ""`) combined with the default value `$_exportedName` pattern.
- 2. **Flexible Scalars**: Ensure your schema uses scalars wrapped with `makeScalarAcceptExports` for fields that need to accept export patterns.
- 3. **Nested Relations**: Export variables now work seamlessly in nested relations - no special configuration needed.
- 
- For **Limitations**:
- 
- - **Direct Strings**: You cannot use direct inline strings like `eq: "$_userId"` if the field type is strict (like `Int` or standard `ULID`). You must use the variable approach.
- - **Single Request**: Exports share state only within the context of a single request.
- - **Execution Order**: Exported values must be available before they're used (GraphQL's natural execution order handles this).
- 
- **Bottom Line**: This approach is now fully functional and tested for production use with the `drizzle-graphql` ecosystem, including complete support for nested relation queries.
- 
- ## Next Steps
- 
- This package is ready for integration.
- 
- 
- ## Integration with GraphQL Yoga
- 
- Here is how to set it up with `graphql-yoga`:
- 
- ```typescript
- import { createYoga } from "graphql-yoga";
- import { createServer } from "node:http";
- import { makeExecutableSchema } from "@graphql-tools/schema";
- import { composeResolvers } from "@graphql-tools/resolvers-composition";
- import { buildSchemaSDL } from "drizzle-graphql";
- import { createExportMiddleware, makeScalarAcceptExports } from "drizzle-graphql/export-tool";
- import { GraphQLULID } from "graphql-scalars";
- 
- // 1. Generate TypeDefs and Resolvers from Drizzle
- const { typeDefs, resolvers } = buildSchemaSDL(db);
- 
- // 2. Add @export directive and Flexible Scalar to schema
- const extendedTypeDefs = `
-   directive @export(as: String!) on FIELD
-   scalar ULID
-   ${typeDefs}
- `;
- 
- // 3. Override ULID scalar with Flexible version
- const FlexibleULID = makeScalarAcceptExports(GraphQLULID);
- 
- const resolverMap = {
-   ...resolvers,
-   ULID: FlexibleULID, // Important: Use FlexibleULID to allow $_ patterns!
- };
- 
- // 4. Compose resolvers with middleware
- const composedResolvers = composeResolvers(resolverMap, {
-   "*.*": [createExportMiddleware()], // Apply to all fields
- });
- 
- // 5. Create Schema
- const schema = makeExecutableSchema({
-   typeDefs: extendedTypeDefs,
-   resolvers: composedResolvers,
- });
- 
- // 6. Create Yoga Server
- const yoga = createYoga({ schema });
- const server = createServer(yoga);
- 
- server.listen(4000, () => {
-   console.log("Server is running on http://localhost:4000/graphql");
- });
- ```
+
+- ✅ **ExportStore**: All tests pass
+- ✅ **Utils**: All tests pass
+- ✅ **Middleware**: All tests pass
+- ✅ **Integration**: All tests pass (using Flexible Scalar + Variable approach)
+- ✅ **Nested Relations**: All tests pass (export variables work in nested relation queries)
+
+## Conclusion
+
+This implementation provides a **fully functional @export directive** using resolver composition and a customized scalar, with complete support for nested relations.
+
+The solution successfully overcomes the scalar validation issue by using `makeScalarAcceptExports`, which creates a scalar that accepts both valid values and `$_varName` strings during the validation phase.
+
+**NEW**: The latest enhancement adds support for export variables in nested relation queries, making the export directive work seamlessly across all GraphQL query patterns.
+
+Included features:
+
+✅ **Flexible Scalars**: Helper factory to pass validation for export patterns
+✅ **Resolver Middleware**: Intercepts execution to resolve variables and store exports
+✅ **Recursive Resolution**: Supports nested fields and deep variable resolution
+✅ **Variable Support**: Works with standard GraphQL variables
+✅ **Nested Relations**: Export variables work in nested relation queries (sport.posts, user.profile, etc.)
+
+### Recommendations
+
+For **Production Use**:
+
+1.  **Use the Variable Pattern**: Always use GraphQL variables (`$userId: ULID = ""`) combined with the default value `$_exportedName` pattern.
+2.  **Flexible Scalars**: Ensure your schema uses scalars wrapped with `makeScalarAcceptExports` for fields that need to accept export patterns.
+3.  **Nested Relations**: Export variables now work seamlessly in nested relations - no special configuration needed.
+
+For **Limitations**:
+
+- **Direct Strings**: You cannot use direct inline strings like `eq: "$_userId"` if the field type is strict (like `Int` or standard `ULID`). You must use the variable approach.
+- **Single Request**: Exports share state only within the context of a single request.
+- **Execution Order**: Exported values must be available before they're used (GraphQL's natural execution order handles this).
+
+**Bottom Line**: This approach is now fully functional and tested for production use with the `drizzle-graphql` ecosystem, including complete support for nested relation queries.
+
+## Next Steps
+
+This package is ready for integration.
+
+## Integration with GraphQL Yoga
+
+Here is how to set it up with `graphql-yoga`:
+
+```typescript
+import { createYoga } from "graphql-yoga";
+import { createServer } from "node:http";
+import { makeExecutableSchema } from "@graphql-tools/schema";
+import { composeResolvers } from "@graphql-tools/resolvers-composition";
+import { buildSchemaSDL } from "drizzle-graphql";
+import {
+  createExportMiddleware,
+  makeScalarAcceptExports,
+} from "drizzle-graphql/export-tool";
+import { GraphQLULID } from "graphql-scalars";
+
+// 1. Generate TypeDefs and Resolvers from Drizzle
+const { typeDefs, resolvers } = buildSchemaSDL(db);
+
+// 2. Add @export directive and Flexible Scalar to schema
+const extendedTypeDefs = `
+  directive @export(as: String!) on FIELD
+  scalar ULID
+  ${typeDefs}
+`;
+
+// 3. Override ULID scalar with Flexible version
+const FlexibleULID = makeScalarAcceptExports(GraphQLULID);
+
+const resolverMap = {
+  ...resolvers,
+  ULID: FlexibleULID, // Important: Use FlexibleULID to allow $_ patterns!
+};
+
+// 4. Compose resolvers with middleware
+const composedResolvers = composeResolvers(resolverMap, {
+  "*.*": [createExportMiddleware()], // Apply to all fields
+});
+
+// 5. Create Schema
+const schema = makeExecutableSchema({
+  typeDefs: extendedTypeDefs,
+  resolvers: composedResolvers,
+});
+
+// 6. Create Yoga Server
+const yoga = createYoga({ schema });
+const server = createServer(yoga);
+
+server.listen(4000, () => {
+  console.log("Server is running on http://localhost:4000/graphql");
+});
+```
