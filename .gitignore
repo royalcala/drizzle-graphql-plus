@@ -17,3 +17,4 @@ drizzle.test-heavy.ts
 changes.md
 tests/isolated.test.ts
 *.db
+src/serial-directive-envelop-hooks/tests/test-serial-hooks.db

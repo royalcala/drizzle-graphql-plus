@@ -73,46 +73,51 @@ export const useExportDirective = (): Plugin => {
             info.parentType instanceof GraphQLObjectType
           ) {
             const fieldNode = info.fieldNodes[0];
-            const fieldName = fieldNode.name.value;
-            const fieldDef = info.parentType.getFields()[fieldName];
+            if (!fieldNode) {
+              if (isComments) {
+                logExportExecution("DEBUG fieldNode NOT FOUND");
+              }
+            } else {
+              const fieldName = fieldNode.name.value;
+              const fieldDef = info.parentType.getFields()[fieldName];
 
-            // Log if fieldDef found
-            if (isComments) {
-              if (!fieldDef) logExportExecution("DEBUG fieldDef NOT FOUND");
-              if (!fieldNode) logExportExecution("DEBUG fieldNode NOT FOUND");
-            }
+              // Log if fieldDef found
+              if (isComments && !fieldDef) {
+                logExportExecution("DEBUG fieldDef NOT FOUND");
+              }
 
-            if (fieldDef && fieldNode) {
-              try {
-                if (isComments) {
-                  logExportExecution("DEBUG calling getArgumentValues", {
-                    fieldNodeName: fieldNode.name.value,
-                    fieldDefName: fieldDef.name,
-                    variablesKeys: Object.keys(ctx._graphqlVariables || {}),
-                  });
+              if (fieldDef) {
+                try {
+                  if (isComments) {
+                    logExportExecution("DEBUG calling getArgumentValues", {
+                      fieldNodeName: fieldNode.name.value,
+                      fieldDefName: fieldDef.name,
+                      variablesKeys: Object.keys(ctx._graphqlVariables || {}),
+                    });
+                  }
+
+                  const freshArgs = getArgumentValues(
+                    fieldDef,
+                    fieldNode,
+                    ctx._graphqlVariables
+                  );
+
+                  if (isComments) {
+                    logExportExecution("DEBUG getArgumentValues result", {
+                      freshArgsKeys: Object.keys(freshArgs || {}),
+                      freshArgs: JSON.stringify(freshArgs),
+                    });
+                  }
+
+                  if (freshArgs) {
+                    currentArgs = freshArgs;
+                  }
+                } catch (e) {
+                  logExportExecution(
+                    "Failed to re-resolve args for " + info.fieldName,
+                    e
+                  );
                 }
-
-                const freshArgs = getArgumentValues(
-                  fieldDef,
-                  fieldNode,
-                  ctx._graphqlVariables
-                );
-
-                if (isComments) {
-                  logExportExecution("DEBUG getArgumentValues result", {
-                    freshArgsKeys: Object.keys(freshArgs || {}),
-                    freshArgs: JSON.stringify(freshArgs),
-                  });
-                }
-
-                if (freshArgs) {
-                  currentArgs = freshArgs;
-                }
-              } catch (e) {
-                logExportExecution(
-                  "Failed to re-resolve args for " + info.fieldName,
-                  e
-                );
               }
             }
           }
@@ -207,6 +212,7 @@ export const useExportDirective = (): Plugin => {
             }
 
             if (
+              fieldNode &&
               fieldNode.selectionSet &&
               result !== undefined &&
               result !== null
@@ -252,6 +258,9 @@ export const useExportDirective = (): Plugin => {
             const fields = type.getFields();
             for (const fieldName in fields) {
               const field = fields[fieldName];
+              if (!field) {
+                continue;
+              }
               if (field.resolve) {
                 // Wrap existing resolver
                 field.resolve = createWrappedResolver(field.resolve);

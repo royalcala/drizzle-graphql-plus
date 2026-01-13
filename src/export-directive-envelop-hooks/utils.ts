@@ -488,7 +488,7 @@ async function traverseASTAndResolve(
     const len = Math.min(list.length, node.values.length);
     for (let i = 0; i < len; i++) {
       await traverseASTAndResolve(
-        node.values[i],
+        node.values[i]!,
         list,
         i,
         exportStore,
@@ -504,7 +504,7 @@ async function traverseASTAndResolve(
  * @param data - Additional data to log
  */
 export function logExportExecution(message: string, data?: any): void {
-  if (process.env.DEBUG_EXPORT) {
+  if (process.env["DEBUG_EXPORT"]) {
     console.log("[EXPORT-HOOK] " + message, data || "");
   }
 }
