@@ -290,7 +290,11 @@ export function processExports(
           // Accumulate in variables (with basic deduplication like ExportStore, or just push)
           if (!variables[varName]) {
             variables[varName] = [];
+          } else if (!Array.isArray(variables[varName])) {
+            // If variable exists but is scalar, convert to array to allow accumulation
+            variables[varName] = [variables[varName]];
           }
+
           if (Array.isArray(variables[varName])) {
             // Avoid duplicates if possible, or just push.
             // Drizzle-graphql might rely on exact array matches?
@@ -300,7 +304,17 @@ export function processExports(
             }
           }
         } else {
-          variables[varName] = value;
+          // If not an array item, check if we should upgrade to array anyway
+          // This happens if multiple singleton fields export to the same variable
+          if (variables[varName] !== undefined && !Array.isArray(variables[varName]) && variables[varName] !== value) {
+            variables[varName] = [variables[varName], value];
+          } else if (Array.isArray(variables[varName])) {
+            if (!variables[varName].includes(value)) {
+              variables[varName].push(value);
+            }
+          } else {
+            variables[varName] = value;
+          }
         }
         logExportExecution(
           "Updated GraphQL variable: " + varName,

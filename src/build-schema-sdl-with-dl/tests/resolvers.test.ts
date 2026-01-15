@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
+import { reset } from "drizzle-seed";
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import * as schema from "./schema";
@@ -45,7 +46,9 @@ describe("DataLoader Resolver Tests", () => {
     testEmail: `test-${generateUlid()}@example.com`, // Unique email per test run
   };
 
-  beforeAll(async () => {
+  beforeEach(async () => {
+    // Reset database
+    await reset(db, schema);
     // Seed test data
     await db.insert(user).values({
       id: testData.userId,
@@ -83,15 +86,6 @@ describe("DataLoader Resolver Tests", () => {
       avatarUrl: "https://example.com/avatar.jpg",
       website: "https://example.com",
     });
-  });
-
-  afterAll(async () => {
-    // Clean up test data
-    await db.delete(reaction);
-    await db.delete(comment);
-    await db.delete(post);
-    await db.delete(userProfile);
-    await db.delete(user);
   });
 
   describe("DataLoader Query Performance Tests", () => {
@@ -2229,8 +2223,10 @@ describe("DataLoader Batching Limits", () => {
     uniqueCitySlug: `large-city-${generateUlid().slice(-8)}`,
   };
 
-  beforeAll(async () => {
+  beforeEach(async () => {
+    await reset(db, schema);
     // Create test user first
+    await db.delete(user).where(eq(user.id, testData.userId));
     await db.insert(user).values({
       id: testData.userId,
       name: "Batching Test User",
@@ -2239,11 +2235,13 @@ describe("DataLoader Batching Limits", () => {
     });
 
     // Create test sport and city
+    await db.delete(sport).where(eq(sport.id, testData.sportId));
     await db.insert(sport).values({
       id: testData.sportId,
       name: testData.uniqueSportName,
     });
 
+    await db.delete(city).where(eq(city.id, testData.cityId));
     await db.insert(city).values({
       id: testData.cityId,
       name: "Large Dataset City",
@@ -2294,15 +2292,6 @@ describe("DataLoader Batching Limits", () => {
     console.log(
       `Created ${posts.length} posts and ${comments.length} comments for batching test`
     );
-  });
-
-  afterAll(async () => {
-    // Clean up test data
-    await db.delete(comment).where(eq(comment.userId, testData.userId));
-    await db.delete(post).where(eq(post.sportId, testData.sportId));
-    await db.delete(sport).where(eq(sport.id, testData.sportId));
-    await db.delete(city).where(eq(city.id, testData.cityId));
-    await db.delete(user).where(eq(user.id, testData.userId));
   });
 
   it("should handle large dataset with limit (working case)", async () => {
@@ -2963,24 +2952,11 @@ describe("DataLoader Batching Limits", () => {
         }
       }
     } finally {
-      // Simple cleanup - delete in correct order
+      // Simple cleanup with drizzle-seed reset
       console.log("\nCleaning up test data...");
 
       try {
-        // Delete all test comments first
-        for (const userData of testUsers) {
-          await db.delete(comment).where(eq(comment.userId, userData.id));
-        }
-
-        // Delete all test posts
-        for (const userData of testUsers) {
-          await db.delete(post).where(eq(post.authorId, userData.id));
-        }
-
-        // Delete all test users
-        for (const userData of testUsers) {
-          await db.delete(user).where(eq(user.id, userData.id));
-        }
+        await reset(db, schema);
 
         console.log("✅ Cleanup completed successfully");
       } catch (cleanupError) {

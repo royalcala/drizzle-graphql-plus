@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { reset } from "drizzle-seed";
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import * as schema from "./schema";
@@ -38,6 +39,7 @@ describe("ReactionType inArray filter (libsql panic repro)", () => {
   };
 
   beforeAll(async () => {
+    await reset(db, schema);
     await db.insert(user).values({
       id: ids.userId,
       name: "Reaction Panic User",
@@ -69,10 +71,7 @@ describe("ReactionType inArray filter (libsql panic repro)", () => {
   });
 
   afterAll(async () => {
-    await db.delete(reaction).where(eq(reaction.id, ids.reactionId));
-    await db.delete(comment).where(eq(comment.id, ids.commentId));
-    await db.delete(post).where(eq(post.id, ids.postId));
-    await db.delete(user).where(eq(user.id, ids.userId));
+    await reset(db, schema);
   });
 
   it("should query reactionFindMany with ReactionType inArray filter", async () => {

@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
+import { reset } from "drizzle-seed";
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { eq } from "drizzle-orm";
@@ -11,6 +12,7 @@ import {
   comment,
   city,
   sport,
+  reaction,
 } from "../../build-schema-sdl-with-dl/tests/schema";
 import { envelop, useEngine, useSchema, useExtendContext } from "@envelop/core";
 import { execute as graphqlExecute, subscribe, parse } from "graphql";
@@ -103,6 +105,8 @@ async function executeGraphQLQuery(
     variableValues: variables,
   });
 
+
+
   if ("data" in result) {
     return result.data;
   }
@@ -131,7 +135,10 @@ describe("Export + Serial Integration Tests", () => {
     testEmail4: `export-serial-test-4-${generateUlid()}@example.com`,
   };
 
-  beforeAll(async () => {
+  beforeEach(async () => {
+    // Reset database
+    await reset(db, schema);
+
     // Seed test data
     // Ensure schema exists for this test DB via drizzle-kit.
     await db.insert(sport).values({
@@ -229,21 +236,7 @@ describe("Export + Serial Integration Tests", () => {
     ]);
   });
 
-  afterAll(async () => {
-    // Clean up test data
-    await db.delete(comment).where(eq(comment.userId, testData.userId1));
-    await db.delete(comment).where(eq(comment.userId, testData.userId2));
-    await db.delete(comment).where(eq(comment.userId, testData.userId3));
-    await db.delete(post).where(eq(post.authorId, testData.userId1));
-    await db.delete(post).where(eq(post.authorId, testData.userId2));
-    await db.delete(post).where(eq(post.authorId, testData.userId3));
-    await db.delete(user).where(eq(user.id, testData.userId1));
-    await db.delete(user).where(eq(user.id, testData.userId2));
-    await db.delete(user).where(eq(user.id, testData.userId3));
-    await db.delete(user).where(eq(user.id, testData.userId4));
-    await db.delete(sport).where(eq(sport.id, testData.sportId));
-    await db.delete(city).where(eq(city.id, testData.cityId));
-  });
+
 
   describe("Serial + Export Working Together", () => {
     it("should execute exports sequentially with @serial directive", async () => {
@@ -545,6 +538,108 @@ describe("Export + Serial Integration Tests", () => {
     });
   });
 
+
+
+  describe("Reproduction: Deep Nested Exports with findFirst", () => {
+    it("should export variables from nested collections in findFirst", async () => {
+      // Setup specific data for this reproduction to ensure unique IDs
+      const reproData = {
+        postId: generateUlid(),
+        postAuthorId: generateUlid(),
+        commentId: generateUlid(),
+        commentAuthorId: generateUlid(),
+        postReactionId: generateUlid(),
+        postReactionAuthorId: generateUlid(),
+        commentReactionId: generateUlid(),
+        commentReactionAuthorId: generateUlid(),
+      };
+
+      // Insert data
+      await db.insert(user).values([
+        { id: reproData.postAuthorId, name: "Post Author", email: `post-author-${reproData.postAuthorId}@test.com` },
+        { id: reproData.commentAuthorId, name: "Comment Author", email: `comment-author-${reproData.commentAuthorId}@test.com` },
+        { id: reproData.postReactionAuthorId, name: "Post Reaction Author", email: `nr-author-${reproData.postReactionAuthorId}@test.com` },
+        { id: reproData.commentReactionAuthorId, name: "Comment Reaction Author", email: `cr-author-${reproData.commentReactionAuthorId}@test.com` },
+      ]);
+
+      await db.insert(post).values({
+        id: reproData.postId,
+        title: "Repro Post",
+        content: "Content",
+        authorId: reproData.postAuthorId,
+      });
+
+      await db.insert(comment).values({
+        id: reproData.commentId,
+        text: "Repro Comment",
+        postId: reproData.postId,
+        userId: reproData.commentAuthorId,
+      });
+
+      await db.insert(reaction).values([
+        {
+          id: reproData.postReactionId,
+          postId: reproData.postId,
+          authorId: reproData.postReactionAuthorId,
+          type: "LIKE",
+        },
+        {
+          id: reproData.commentReactionId,
+          postId: reproData.postId,
+          commentId: reproData.commentId,
+          authorId: reproData.commentReactionAuthorId,
+          type: "LIKE",
+        },
+      ]);
+
+      const data = await executeGraphQLQuery(
+        integrationEnveloped,
+        `
+        query postById($postId: ID!, $_usersIds: [ID!]) @serial {
+          postFindFirst(where: { id: { eq: $postId } }) {
+            authorId @export(as: "$_usersIds")
+            reactions {
+              authorId @export(as: "$_usersIds")
+              id
+            }
+            comments {
+              userId @export(as: "$_usersIds")
+              reactions {
+                authorId @export(as: "$_usersIds")
+                id
+              }
+              id
+            }
+            id
+          }
+    
+          userFindMany(where: { id: { inArray: $_usersIds } }) {
+            id
+          }
+        }
+        `,
+        {
+          postId: reproData.postId,
+        }
+      );
+
+
+
+      expect(data?.postFindFirst).toBeDefined();
+      expect(data?.userFindMany).toBeDefined();
+
+      const foundUsers = data?.userFindMany as any[];
+      const foundIds = foundUsers.map(u => u.id).sort();
+      const expectedIds = [
+        reproData.postAuthorId,
+        reproData.commentAuthorId,
+        reproData.postReactionAuthorId,
+        reproData.commentReactionAuthorId
+      ].sort();
+
+      expect(foundIds).toEqual(expectedIds);
+    });
+  });
   describe("Error Handling with Serial + Export", () => {
     it("should handle errors gracefully in serial + export chain", async () => {
       const data = await executeGraphQLQuery(
@@ -571,3 +666,4 @@ describe("Export + Serial Integration Tests", () => {
     });
   });
 });
+

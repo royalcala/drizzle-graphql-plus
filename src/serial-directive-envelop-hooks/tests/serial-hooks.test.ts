@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
+import { reset } from "drizzle-seed";
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { eq } from "drizzle-orm";
@@ -132,7 +133,9 @@ describe("Serial Envelop Hooks Tests", () => {
     testEmail2: `serial-hooks-test-2-${generateUlid()}@example.com`,
   };
 
-  beforeAll(async () => {
+  beforeEach(async () => {
+    // Reset database
+    await reset(db, schema);
     // Seed test data
     await db.insert(sport).values({
       id: testData.sportId,
@@ -229,25 +232,7 @@ describe("Serial Envelop Hooks Tests", () => {
     ]);
   });
 
-  afterAll(async () => {
-    // Clean up test data
-    await db.delete(reaction).where(eq(reaction.authorId, testData.userId1));
-    await db.delete(reaction).where(eq(reaction.authorId, testData.userId2));
-    await db.delete(comment).where(eq(comment.userId, testData.userId1));
-    await db.delete(comment).where(eq(comment.userId, testData.userId2));
-    await db.delete(post).where(eq(post.authorId, testData.userId1));
-    await db.delete(post).where(eq(post.authorId, testData.userId2));
-    await db
-      .delete(userProfile)
-      .where(eq(userProfile.userId, testData.userId1));
-    await db
-      .delete(userProfile)
-      .where(eq(userProfile.userId, testData.userId2));
-    await db.delete(user).where(eq(user.id, testData.userId1));
-    await db.delete(user).where(eq(user.id, testData.userId2));
-    await db.delete(sport).where(eq(sport.id, testData.sportId));
-    await db.delete(city).where(eq(city.id, testData.cityId));
-  });
+
 
   describe("Basic Serial Directive Functionality", () => {
     it("should execute root-level queries sequentially with @serial directive", async () => {

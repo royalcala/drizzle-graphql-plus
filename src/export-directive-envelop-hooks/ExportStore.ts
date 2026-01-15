@@ -19,6 +19,12 @@ export class ExportStore {
    * Resolves any pending promises waiting for this value
    */
   set(name: string, value: any): void {
+    // If we're already accumulating this variable, treat set() as an accumulation
+    if (this.accumulators.has(name)) {
+      this.accumulate(name, value);
+      return;
+    }
+
     this.store.set(name, value);
 
     // Resolve any pending promises waiting for this value
@@ -36,7 +42,22 @@ export class ExportStore {
   accumulate(name: string, value: any): void {
     // Initialize accumulator set if needed
     if (!this.accumulators.has(name)) {
-      this.accumulators.set(name, new Set());
+      const initialSet = new Set();
+
+      // If there's already a value in the store (from a previous set() call),
+      // import it into the accumulator so we don't lose it
+      if (this.store.has(name)) {
+        const existing = this.store.get(name);
+        if (existing !== null && existing !== undefined) {
+          if (Array.isArray(existing)) {
+            existing.forEach(item => initialSet.add(item));
+          } else {
+            initialSet.add(existing);
+          }
+        }
+      }
+
+      this.accumulators.set(name, initialSet);
     }
 
     const accumulator = this.accumulators.get(name)!;
