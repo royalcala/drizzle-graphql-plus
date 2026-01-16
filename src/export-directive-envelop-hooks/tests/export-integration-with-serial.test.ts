@@ -105,8 +105,6 @@ async function executeGraphQLQuery(
     variableValues: variables,
   });
 
-
-
   if ("data" in result) {
     return result.data;
   }
@@ -235,8 +233,6 @@ describe("Export + Serial Integration Tests", () => {
       },
     ]);
   });
-
-
 
   describe("Serial + Export Working Together", () => {
     it("should execute exports sequentially with @serial directive", async () => {
@@ -538,8 +534,6 @@ describe("Export + Serial Integration Tests", () => {
     });
   });
 
-
-
   describe("Reproduction: Deep Nested Exports with findFirst", () => {
     it("should export variables from nested collections in findFirst", async () => {
       // Setup specific data for this reproduction to ensure unique IDs
@@ -556,10 +550,26 @@ describe("Export + Serial Integration Tests", () => {
 
       // Insert data
       await db.insert(user).values([
-        { id: reproData.postAuthorId, name: "Post Author", email: `post-author-${reproData.postAuthorId}@test.com` },
-        { id: reproData.commentAuthorId, name: "Comment Author", email: `comment-author-${reproData.commentAuthorId}@test.com` },
-        { id: reproData.postReactionAuthorId, name: "Post Reaction Author", email: `nr-author-${reproData.postReactionAuthorId}@test.com` },
-        { id: reproData.commentReactionAuthorId, name: "Comment Reaction Author", email: `cr-author-${reproData.commentReactionAuthorId}@test.com` },
+        {
+          id: reproData.postAuthorId,
+          name: "Post Author",
+          email: `post-author-${reproData.postAuthorId}@test.com`,
+        },
+        {
+          id: reproData.commentAuthorId,
+          name: "Comment Author",
+          email: `comment-author-${reproData.commentAuthorId}@test.com`,
+        },
+        {
+          id: reproData.postReactionAuthorId,
+          name: "Post Reaction Author",
+          email: `nr-author-${reproData.postReactionAuthorId}@test.com`,
+        },
+        {
+          id: reproData.commentReactionAuthorId,
+          name: "Comment Reaction Author",
+          email: `cr-author-${reproData.commentReactionAuthorId}@test.com`,
+        },
       ]);
 
       await db.insert(post).values({
@@ -623,18 +633,18 @@ describe("Export + Serial Integration Tests", () => {
         }
       );
 
-
-
       expect(data?.postFindFirst).toBeDefined();
+      expect(data?.postFindFirst).not.toBeNull();
+      expect((data?.postFindFirst as any)?.id).toBe(reproData.postId);
       expect(data?.userFindMany).toBeDefined();
 
       const foundUsers = data?.userFindMany as any[];
-      const foundIds = foundUsers.map(u => u.id).sort();
+      const foundIds = foundUsers.map((u) => u.id).sort();
       const expectedIds = [
         reproData.postAuthorId,
         reproData.commentAuthorId,
         reproData.postReactionAuthorId,
-        reproData.commentReactionAuthorId
+        reproData.commentReactionAuthorId,
       ].sort();
 
       expect(foundIds).toEqual(expectedIds);
@@ -666,4 +676,3 @@ describe("Export + Serial Integration Tests", () => {
     });
   });
 });
-
